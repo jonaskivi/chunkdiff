@@ -236,11 +236,19 @@ class _RepoToolbarState extends ConsumerState<RepoToolbar> {
         ),
         const SizedBox(width: 12),
         OutlinedButton.icon(
-          onPressed: () => ref.invalidate(repoValidationProvider),
+          onPressed: () => _refreshAll(ref),
           icon: const Icon(Icons.refresh),
           label: const Text('Refresh'),
         ),
       ],
     );
+  }
+
+  void _refreshAll(WidgetRef ref) {
+    ref.read(selectedChangeIndexProvider.notifier).state = 0;
+    ref.invalidate(repoValidationProvider);
+    ref.invalidate(refOptionsProvider);
+    ref.invalidate(symbolDiffsProvider);
+    ref.invalidate(gitAccessProvider);
   }
 }
