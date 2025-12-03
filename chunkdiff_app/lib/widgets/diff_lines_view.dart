@@ -10,12 +10,16 @@ class DiffLinesView extends StatelessWidget {
     this.header,
     this.subtitle,
     this.scrollable = true,
+    this.leftLabel,
+    this.rightLabel,
   });
 
   final List<DiffLine> lines;
   final String? header;
   final String? subtitle;
   final bool scrollable;
+  final String? leftLabel;
+  final String? rightLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -62,15 +66,33 @@ class DiffLinesView extends StatelessWidget {
             ),
           );
 
+    final Widget? labelsRow =
+        leftLabel == null && rightLabel == null ? null : _SideLabels(
+          leftLabel: leftLabel,
+          rightLabel: rightLabel,
+        );
+
     if (scrollable) {
       return ListView.builder(
         padding: EdgeInsets.zero,
-        itemCount: lines.length + (headerWidget == null ? 0 : 1),
+        itemCount: lines.length +
+            (headerWidget == null ? 0 : 1) +
+            (labelsRow == null ? 0 : 1),
         itemBuilder: (BuildContext context, int index) {
-          if (headerWidget != null && index == 0) {
+          int offset = 0;
+          if (headerWidget != null && index == offset) {
             return headerWidget;
           }
-          final int lineIndex = headerWidget == null ? index : index - 1;
+          if (headerWidget != null) offset++;
+          if (labelsRow != null && index == offset) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: labelsRow,
+            );
+          }
+          if (labelsRow != null) offset++;
+
+          final int lineIndex = index - offset;
           return _DiffLineRow(line: lines[lineIndex]);
         },
       );
@@ -80,6 +102,10 @@ class DiffLinesView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (headerWidget != null) headerWidget,
+        if (labelsRow != null) ...[
+          labelsRow,
+          const SizedBox(height: 8),
+        ],
         ListView.builder(
           padding: EdgeInsets.zero,
           shrinkWrap: true,
@@ -88,6 +114,51 @@ class DiffLinesView extends StatelessWidget {
           itemBuilder: (BuildContext context, int index) {
             return _DiffLineRow(line: lines[index]);
           },
+        ),
+      ],
+    );
+  }
+}
+
+class _SideLabels extends StatelessWidget {
+  const _SideLabels({this.leftLabel, this.rightLabel});
+
+  final String? leftLabel;
+  final String? rightLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool differ =
+        leftLabel != null && rightLabel != null && leftLabel != rightLabel;
+    final Color leftBg = differ ? const Color(0xFF3b1f1f) : Colors.transparent;
+    final Color rightBg = differ ? const Color(0xFF1f3b1f) : Colors.transparent;
+    final TextStyle style = const TextStyle(
+      fontFamily: 'SourceCodePro',
+      fontSize: 12,
+      color: Colors.white,
+    );
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+            decoration: BoxDecoration(
+              color: leftBg,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(leftLabel ?? '', style: style, overflow: TextOverflow.ellipsis),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+            decoration: BoxDecoration(
+              color: rightBg,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(rightLabel ?? '', style: style, overflow: TextOverflow.ellipsis),
+          ),
         ),
       ],
     );
