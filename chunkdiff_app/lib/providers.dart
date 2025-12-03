@@ -102,7 +102,7 @@ final FutureProvider<List<String>> refOptionsProvider =
   try {
     final List<String> refs = await listGitRefs(path);
     if (refs.isNotEmpty) {
-      return refs;
+      return refs.toSet().toList();
     }
   } catch (_) {
     // fall back to stub refs

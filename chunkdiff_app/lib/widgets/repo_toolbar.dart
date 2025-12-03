@@ -149,24 +149,29 @@ class _RepoToolbarState extends ConsumerState<RepoToolbar> {
         SizedBox(
           width: 160,
           child: refOptions.when(
-            data: (List<String> refs) => DropdownButtonFormField<String>(
-              value: leftRef,
-              decoration: const InputDecoration(
-                labelText: 'Left ref',
-                isDense: true,
-              ),
-              items: refs
-                  .map((String ref) => DropdownMenuItem<String>(
-                        value: ref,
-                        child: Text(ref),
-                      ))
-                  .toList(),
-              onChanged: (String? value) {
-                if (value != null) {
-                  ref.read(leftRefProvider.notifier).state = value;
-                }
-              },
-            ),
+            data: (List<String> refs) {
+              final List<String> distinct = refs.toSet().toList();
+              final String? value =
+                  distinct.contains(leftRef) ? leftRef : (distinct.isNotEmpty ? distinct.first : null);
+              return DropdownButtonFormField<String>(
+                value: value,
+                decoration: const InputDecoration(
+                  labelText: 'Left ref',
+                  isDense: true,
+                ),
+                items: distinct
+                    .map((String refItem) => DropdownMenuItem<String>(
+                          value: refItem,
+                          child: Text(refItem),
+                        ))
+                    .toList(),
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    ref.read(leftRefProvider.notifier).state = newValue;
+                  }
+                },
+              );
+            },
             loading: () => const Center(
               child: SizedBox(
                 height: 24,
@@ -189,24 +194,29 @@ class _RepoToolbarState extends ConsumerState<RepoToolbar> {
         SizedBox(
           width: 160,
           child: refOptions.when(
-            data: (List<String> refs) => DropdownButtonFormField<String>(
-              value: rightRef,
-              decoration: const InputDecoration(
-                labelText: 'Right ref',
-                isDense: true,
-              ),
-              items: refs
-                  .map((String ref) => DropdownMenuItem<String>(
-                        value: ref,
-                        child: Text(ref),
-                      ))
-                  .toList(),
-              onChanged: (String? value) {
-                if (value != null) {
-                  ref.read(rightRefProvider.notifier).state = value;
-                }
-              },
-            ),
+            data: (List<String> refs) {
+              final List<String> distinct = refs.toSet().toList();
+              final String? value =
+                  distinct.contains(rightRef) ? rightRef : (distinct.isNotEmpty ? distinct.first : null);
+              return DropdownButtonFormField<String>(
+                value: value,
+                decoration: const InputDecoration(
+                  labelText: 'Right ref',
+                  isDense: true,
+                ),
+                items: distinct
+                    .map((String refItem) => DropdownMenuItem<String>(
+                          value: refItem,
+                          child: Text(refItem),
+                        ))
+                    .toList(),
+                onChanged: (String? newValue) {
+                  if (newValue != null) {
+                    ref.read(rightRefProvider.notifier).state = newValue;
+                  }
+                },
+              );
+            },
             loading: () => const Center(
               child: SizedBox(
                 height: 24,
