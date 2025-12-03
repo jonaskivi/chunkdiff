@@ -16,11 +16,14 @@ void main(List<String> arguments) {
   stdout.writeln('Hello from core: ${helloFromCore()}');
   stdout.writeln('');
   stdout.writeln('Dummy symbol changes:');
-  for (final SymbolChange change in dummySymbolChanges()) {
+  for (final SymbolDiff diff in dummySymbolDiffs()) {
+    final SymbolChange change = diff.change;
     stdout.writeln(
       '- ${change.name} (${change.kind.name}) '
       '[${change.beforePath ?? '-'} -> ${change.afterPath ?? '-'}]',
     );
+    stdout.writeln('    left:  ${_firstLine(diff.leftSnippet)}');
+    stdout.writeln('    right: ${_firstLine(diff.rightSnippet)}');
   }
 
   if (args.containsKey('help')) {
@@ -55,6 +58,11 @@ Map<String, String> _parseArgs(List<String> args) {
     }
   }
   return result;
+}
+
+String _firstLine(String text) {
+  final List<String> lines = text.split('\n');
+  return lines.isNotEmpty ? lines.first.trim() : '';
 }
 
 const String _usage = '''

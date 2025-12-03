@@ -5,13 +5,6 @@ import 'models/app_settings.dart';
 import 'services/git_service.dart';
 import 'services/settings_repository.dart';
 
-class DiffTextPair {
-  final String left;
-  final String right;
-
-  const DiffTextPair({required this.left, required this.right});
-}
-
 const String kSampleDartCode = '''
 import 'dart:math';
 
@@ -96,15 +89,26 @@ final Provider<SymbolChange?> selectedChangeProvider =
   return changes[index];
 });
 
-const List<String> kStubRefs = <String>[
-  'HEAD',
-  'HEAD~1',
-  'main',
-  'feature/demo',
-];
+const List<String> kStubRefs = <String>['HEAD', 'HEAD~1', 'main'];
 
-final Provider<List<String>> refOptionsProvider =
-    Provider<List<String>>((Ref ref) => kStubRefs);
+final FutureProvider<List<String>> refOptionsProvider =
+    FutureProvider<List<String>>((Ref ref) async {
+  final AppSettings settings =
+      await ref.watch(settingsControllerProvider.future);
+  final String? path = settings.gitFolder;
+  if (path == null || path.isEmpty) {
+    return kStubRefs;
+  }
+  try {
+    final List<String> refs = await listGitRefs(path);
+    if (refs.isNotEmpty) {
+      return refs;
+    }
+  } catch (_) {
+    // fall back to stub refs
+  }
+  return kStubRefs;
+});
 
 final StateProvider<String> leftRefProvider =
     StateProvider<String>((Ref ref) => 'HEAD~1');
@@ -112,76 +116,22 @@ final StateProvider<String> leftRefProvider =
 final StateProvider<String> rightRefProvider =
     StateProvider<String>((Ref ref) => 'HEAD');
 
-const Map<String, DiffTextPair> _sampleDiffs = <String, DiffTextPair>{
-  'ChunkDiffExample.greet': DiffTextPair(
-    left: '''
-class ChunkDiffExample {
-  String greet(String name) {
-    return 'Hello, \$name from v1';
-  }
-}
+final Provider<List<SymbolDiff>> symbolDiffsProvider =
+    Provider<List<SymbolDiff>>((Ref ref) => dummySymbolDiffs());
 
-void main() {
-  final ChunkDiffExample example = ChunkDiffExample();
-  print(example.greet('Developer'));
-}
-''',
-    right: '''
-class ChunkDiffExample {
-  String greet(String name, {bool excited = false}) {
-    final String base = 'Hello, \$name from v2';
-    return excited ? '\$base!' : base;
-  }
-}
-
-void main() {
-  final ChunkDiffExample example = ChunkDiffExample();
-  print(example.greet('Developer', excited: true));
-}
-''',
-  ),
-  'ChunkDiffExample': DiffTextPair(
-    left: '''
-class ChunkDiffExample {
-  final String name;
-
-  const ChunkDiffExample(this.name);
-}
-''',
-    right: '''
-class ChunkDiffExample {
-  final String name;
-  final int version;
-
-  const ChunkDiffExample(this.name, {this.version = 2});
-}
-''',
-  ),
-  'main': DiffTextPair(
-    left: '''
-void main() {
-  final ChunkDiffExample example = ChunkDiffExample('Developer');
-  print(example.name);
-}
-''',
-    right: '''
-void main() {
-  final ChunkDiffExample example = ChunkDiffExample('Developer', version: 2);
-  print('\${example.name} v\${example.version}');
-}
-''',
-  ),
-};
-
-final Provider<DiffTextPair> selectedDiffTextProvider =
-    Provider<DiffTextPair>((Ref ref) {
+final Provider<SymbolDiff?> selectedDiffProvider =
+    Provider<SymbolDiff?>((Ref ref) {
   final SymbolChange? change = ref.watch(selectedChangeProvider);
   if (change == null) {
-    return const DiffTextPair(left: kSampleDartCode, right: kSampleDartCode);
+    return null;
   }
-  final DiffTextPair? pair = _sampleDiffs[change.name];
-  if (pair != null) {
-    return pair;
-  }
-  return const DiffTextPair(left: kSampleDartCode, right: kSampleDartCode);
+  final List<SymbolDiff> diffs = ref.watch(symbolDiffsProvider);
+  return diffs.firstWhere(
+    (SymbolDiff d) => d.change.name == change.name,
+    orElse: () => SymbolDiff(
+      change: change,
+      leftSnippet: kSampleDartCode,
+      rightSnippet: kSampleDartCode,
+    ),
+  );
 });

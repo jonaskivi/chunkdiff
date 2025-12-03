@@ -99,7 +99,7 @@ class _RepoToolbarState extends ConsumerState<RepoToolbar> {
     final AsyncValue<AppSettings> settings = ref.watch(settingsControllerProvider);
     final AsyncValue<GitValidationResult> validation =
         ref.watch(repoValidationProvider);
-    final List<String> refOptions = ref.watch(refOptionsProvider);
+    final AsyncValue<List<String>> refOptions = ref.watch(refOptionsProvider);
     final String leftRef = ref.watch(leftRefProvider);
     final String rightRef = ref.watch(rightRefProvider);
 
@@ -148,45 +148,81 @@ class _RepoToolbarState extends ConsumerState<RepoToolbar> {
         const SizedBox(width: 12),
         SizedBox(
           width: 160,
-          child: DropdownButtonFormField<String>(
-            value: leftRef,
-            decoration: const InputDecoration(
-              labelText: 'Left ref',
-              isDense: true,
+          child: refOptions.when(
+            data: (List<String> refs) => DropdownButtonFormField<String>(
+              value: leftRef,
+              decoration: const InputDecoration(
+                labelText: 'Left ref',
+                isDense: true,
+              ),
+              items: refs
+                  .map((String ref) => DropdownMenuItem<String>(
+                        value: ref,
+                        child: Text(ref),
+                      ))
+                  .toList(),
+              onChanged: (String? value) {
+                if (value != null) {
+                  ref.read(leftRefProvider.notifier).state = value;
+                }
+              },
             ),
-            items: refOptions
-                .map((String ref) => DropdownMenuItem<String>(
-                      value: ref,
-                      child: Text(ref),
-                    ))
-                .toList(),
-            onChanged: (String? value) {
-              if (value != null) {
-                ref.read(leftRefProvider.notifier).state = value;
-              }
-            },
+            loading: () => const Center(
+              child: SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+            error: (_, __) => DropdownButtonFormField<String>(
+              value: leftRef,
+              decoration: const InputDecoration(
+                labelText: 'Left ref',
+                isDense: true,
+              ),
+              items: const [],
+              onChanged: null,
+            ),
           ),
         ),
         const SizedBox(width: 12),
         SizedBox(
           width: 160,
-          child: DropdownButtonFormField<String>(
-            value: rightRef,
-            decoration: const InputDecoration(
-              labelText: 'Right ref',
-              isDense: true,
+          child: refOptions.when(
+            data: (List<String> refs) => DropdownButtonFormField<String>(
+              value: rightRef,
+              decoration: const InputDecoration(
+                labelText: 'Right ref',
+                isDense: true,
+              ),
+              items: refs
+                  .map((String ref) => DropdownMenuItem<String>(
+                        value: ref,
+                        child: Text(ref),
+                      ))
+                  .toList(),
+              onChanged: (String? value) {
+                if (value != null) {
+                  ref.read(rightRefProvider.notifier).state = value;
+                }
+              },
             ),
-            items: refOptions
-                .map((String ref) => DropdownMenuItem<String>(
-                      value: ref,
-                      child: Text(ref),
-                    ))
-                .toList(),
-            onChanged: (String? value) {
-              if (value != null) {
-                ref.read(rightRefProvider.notifier).state = value;
-              }
-            },
+            loading: () => const Center(
+              child: SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+            error: (_, __) => DropdownButtonFormField<String>(
+              value: rightRef,
+              decoration: const InputDecoration(
+                labelText: 'Right ref',
+                isDense: true,
+              ),
+              items: const [],
+              onChanged: null,
+            ),
           ),
         ),
         const SizedBox(width: 12),

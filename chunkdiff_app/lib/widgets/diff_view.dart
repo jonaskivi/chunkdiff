@@ -21,13 +21,15 @@ class _DiffViewState extends ConsumerState<DiffView> {
   @override
   void initState() {
     super.initState();
-    final DiffTextPair initialPair = ref.read(selectedDiffTextProvider);
+    final SymbolDiff? initialDiff = ref.read(selectedDiffProvider);
+    final String initialLeft = initialDiff?.leftSnippet ?? '';
+    final String initialRight = initialDiff?.rightSnippet ?? '';
     _leftController = CodeController(
-      text: initialPair.left,
+      text: initialLeft,
       language: dart,
     );
     _rightController = CodeController(
-      text: initialPair.right,
+      text: initialRight,
       language: dart,
     );
   }
@@ -41,16 +43,21 @@ class _DiffViewState extends ConsumerState<DiffView> {
 
   @override
   Widget build(BuildContext context) {
-    final DiffTextPair pair = ref.watch(selectedDiffTextProvider);
-    if (_leftController.text != pair.left) {
-      _leftController.text = pair.left;
+    final SymbolDiff? diff = ref.watch(selectedDiffProvider);
+    final String left = diff?.leftSnippet ?? _leftController.text;
+    final String right = diff?.rightSnippet ?? _rightController.text;
+    if (_leftController.text != left) {
+      _leftController.text = left;
     }
-    if (_rightController.text != pair.right) {
-      _rightController.text = pair.right;
+    if (_rightController.text != right) {
+      _rightController.text = right;
     }
 
     final List<SymbolChange> changes = ref.watch(symbolChangesProvider);
     final int selectedIndex = ref.watch(selectedChangeIndexProvider);
+    final String leftRef = ref.watch(leftRefProvider);
+    final String rightRef = ref.watch(rightRefProvider);
+    final SymbolChange? selectedChange = ref.watch(selectedChangeProvider);
 
     return Row(
       children: [
@@ -129,30 +136,80 @@ class _DiffViewState extends ConsumerState<DiffView> {
         Expanded(
           child: Column(
             children: [
+              _DiffMetaBar(
+                change: selectedChange,
+                leftRef: leftRef,
+                rightRef: rightRef,
+              ),
+              const SizedBox(height: 8),
               Expanded(
-                child: _DiffPane(
-                  title: 'Left (old)',
-                  controller: _leftController,
-                  backgroundColor: const Color(0xFFFFF3F3),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _DiffPane(
+                        title: 'Left (old)',
+                        controller: _leftController,
+                        backgroundColor: const Color(0xFFFFF3F3),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _DiffPane(
+                        title: 'Right (new)',
+                        controller: _rightController,
+                        backgroundColor: const Color(0xFFF2FFF4),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            children: [
-              Expanded(
-                child: _DiffPane(
-                  title: 'Right (new)',
-                  controller: _rightController,
-                  backgroundColor: const Color(0xFFF2FFF4),
-                ),
-              ),
-            ],
-          ),
-        ),
+      ],
+    );
+  }
+}
+
+class _DiffMetaBar extends StatelessWidget {
+  const _DiffMetaBar({
+    required this.change,
+    required this.leftRef,
+    required this.rightRef,
+    this.alignEnd = false,
+  });
+
+  final SymbolChange? change;
+  final String leftRef;
+  final String rightRef;
+  final bool alignEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextStyle labelStyle =
+        Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey[400]) ??
+            const TextStyle(fontSize: 12, color: Colors.grey);
+    final TextStyle valueStyle =
+        Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600) ??
+            const TextStyle(fontSize: 12, fontWeight: FontWeight.w600);
+
+    return Row(
+      mainAxisAlignment:
+          alignEnd ? MainAxisAlignment.end : MainAxisAlignment.start,
+      children: [
+        if (change != null) ...[
+          Text('Symbol: ', style: labelStyle),
+          Text(change!.name, style: valueStyle),
+          const SizedBox(width: 12),
+          Text('Kind: ', style: labelStyle),
+          Text(change!.kind.name, style: valueStyle),
+          const SizedBox(width: 12),
+        ],
+        Text('Left: ', style: labelStyle),
+        Text(leftRef, style: valueStyle),
+        const SizedBox(width: 8),
+        Text('Right: ', style: labelStyle),
+        Text(rightRef, style: valueStyle),
       ],
     );
   }
