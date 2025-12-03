@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import 'package:chunkdiff_core/chunkdiff_core.dart';
 import '../providers.dart';
@@ -15,6 +16,8 @@ class DiffView extends ConsumerStatefulWidget {
 class _DiffViewState extends ConsumerState<DiffView>
     with SingleTickerProviderStateMixin {
   late final AnimationController _shimmerController;
+  late final FocusNode _filesFocus;
+  late final FocusNode _hunksFocus;
 
   @override
   void initState() {
@@ -23,11 +26,15 @@ class _DiffViewState extends ConsumerState<DiffView>
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat();
+    _filesFocus = FocusNode(debugLabel: 'filesFocus');
+    _hunksFocus = FocusNode(debugLabel: 'hunksFocus');
   }
 
   @override
   void dispose() {
     _shimmerController.dispose();
+    _filesFocus.dispose();
+    _hunksFocus.dispose();
     super.dispose();
   }
 
@@ -54,7 +61,7 @@ class _DiffViewState extends ConsumerState<DiffView>
     return Row(
       children: [
         SizedBox(
-          width: 260,
+          width: 320,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -85,6 +92,23 @@ class _DiffViewState extends ConsumerState<DiffView>
                                     .read(
                                         selectedChangeIndexProvider.notifier)
                                     .state = idx,
+                                onArrowUp: () {
+                                  if (selectedIndex > 0) {
+                                    ref
+                                        .read(selectedChangeIndexProvider
+                                            .notifier)
+                                        .state = selectedIndex - 1;
+                                  }
+                                },
+                                onArrowDown: () {
+                                  if (selectedIndex < changes.length - 1) {
+                                    ref
+                                        .read(selectedChangeIndexProvider
+                                            .notifier)
+                                        .state = selectedIndex + 1;
+                                  }
+                                },
+                                focusNode: _filesFocus,
                               )
                             : activeTab == ChangesTab.hunks
                                 ? _HunkList(
@@ -100,6 +124,37 @@ class _DiffViewState extends ConsumerState<DiffView>
                                               .notifier)
                                           .setSelectedChunkIndex(idx);
                                     },
+                                    onArrowUp: () {
+                                      if (selectedChunkIndex > 0) {
+                                        ref
+                                            .read(selectedChunkIndexProvider
+                                                .notifier)
+                                            .state = selectedChunkIndex - 1;
+                                        ref
+                                            .read(
+                                                settingsControllerProvider
+                                                    .notifier)
+                                            .setSelectedChunkIndex(
+                                                selectedChunkIndex - 1);
+                                      }
+                                    },
+                                    onArrowDown: () {
+                                      final int maxIndex =
+                                          (asyncHunks.value?.length ?? 0) - 1;
+                                      if (selectedChunkIndex < maxIndex) {
+                                        ref
+                                            .read(selectedChunkIndexProvider
+                                                .notifier)
+                                            .state = selectedChunkIndex + 1;
+                                        ref
+                                            .read(
+                                                settingsControllerProvider
+                                                    .notifier)
+                                            .setSelectedChunkIndex(
+                                                selectedChunkIndex + 1);
+                                      }
+                                    },
+                                    focusNode: _hunksFocus,
                                   )
                                 : const _ChunksPlaceholder())
                         : Center(
@@ -124,6 +179,44 @@ class _DiffViewState extends ConsumerState<DiffView>
                 change: selectedChange,
                 leftRef: leftRef,
                 rightRef: rightRef,
+                onPrev: () {
+                  if (activeTab == ChangesTab.files) {
+                    if (selectedIndex > 0) {
+                      ref
+                          .read(selectedChangeIndexProvider.notifier)
+                          .state = selectedIndex - 1;
+                    }
+                  } else if (activeTab == ChangesTab.hunks) {
+                    if (selectedChunkIndex > 0) {
+                      ref
+                          .read(selectedChunkIndexProvider.notifier)
+                          .state = selectedChunkIndex - 1;
+                      ref
+                          .read(settingsControllerProvider.notifier)
+                          .setSelectedChunkIndex(selectedChunkIndex - 1);
+                    }
+                  }
+                },
+                onNext: () {
+                  if (activeTab == ChangesTab.files) {
+                    if (selectedIndex < changes.length - 1) {
+                      ref
+                          .read(selectedChangeIndexProvider.notifier)
+                          .state = selectedIndex + 1;
+                    }
+                  } else if (activeTab == ChangesTab.hunks) {
+                    final int maxIndex =
+                        (asyncHunks.value?.length ?? 0) - 1;
+                    if (selectedChunkIndex < maxIndex) {
+                      ref
+                          .read(selectedChunkIndexProvider.notifier)
+                          .state = selectedChunkIndex + 1;
+                      ref
+                          .read(settingsControllerProvider.notifier)
+                          .setSelectedChunkIndex(selectedChunkIndex + 1);
+                    }
+                  }
+                },
               ),
               const SizedBox(height: 8),
               Expanded(
@@ -163,6 +256,8 @@ class _DiffMetaBar extends StatelessWidget {
     required this.change,
     required this.leftRef,
     required this.rightRef,
+    this.onPrev,
+    this.onNext,
     this.alignEnd = false,
   });
 
@@ -170,6 +265,8 @@ class _DiffMetaBar extends StatelessWidget {
   final String leftRef;
   final String rightRef;
   final bool alignEnd;
+  final VoidCallback? onPrev;
+  final VoidCallback? onNext;
 
   @override
   Widget build(BuildContext context) {
@@ -184,6 +281,22 @@ class _DiffMetaBar extends StatelessWidget {
       mainAxisAlignment:
           alignEnd ? MainAxisAlignment.end : MainAxisAlignment.start,
       children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: 'Previous',
+              icon: const Icon(Icons.arrow_upward),
+              onPressed: onPrev,
+            ),
+            IconButton(
+              tooltip: 'Next',
+              icon: const Icon(Icons.arrow_downward),
+              onPressed: onNext,
+            ),
+            const SizedBox(width: 8),
+          ],
+        ),
         if (change != null) ...[
           Text('Symbol: ', style: labelStyle),
           Text(change!.name, style: valueStyle),
@@ -330,11 +443,17 @@ class _HunkList extends StatelessWidget {
     required this.asyncHunks,
     required this.selectedIndex,
     required this.onSelect,
+    this.focusNode,
+    this.onArrowUp,
+    this.onArrowDown,
   });
 
   final AsyncValue<List<CodeHunk>> asyncHunks;
   final int selectedIndex;
   final ValueChanged<int> onSelect;
+  final FocusNode? focusNode;
+  final VoidCallback? onArrowUp;
+  final VoidCallback? onArrowDown;
 
   @override
   Widget build(BuildContext context) {
@@ -353,24 +472,43 @@ class _HunkList extends StatelessWidget {
       );
     }
 
-    return ListView.separated(
-      padding: EdgeInsets.zero,
-      itemCount: chunks.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (BuildContext context, int index) {
-        final CodeHunk chunk = chunks[index];
-        final bool selected = index == selectedIndex;
-        return ListTile(
-          dense: true,
-          selected: selected,
-          title: Text(chunk.filePath),
-          subtitle: Text(
-            'Old ${chunk.oldStart}-${chunk.oldStart + chunk.oldCount - 1} → '
-            'New ${chunk.newStart}-${chunk.newStart + chunk.newCount - 1}',
-          ),
-          onTap: () => onSelect(index),
-        );
+    return Focus(
+      focusNode: focusNode,
+      onKey: (FocusNode node, RawKeyEvent event) {
+        if (event is! RawKeyDownEvent) return KeyEventResult.ignored;
+        final LogicalKeyboardKey key = event.logicalKey;
+        if (key == LogicalKeyboardKey.arrowUp) {
+          onArrowUp?.call();
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowDown) {
+          onArrowDown?.call();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
       },
+      child: ListView.separated(
+        padding: EdgeInsets.zero,
+        itemCount: chunks.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (BuildContext context, int index) {
+          final CodeHunk chunk = chunks[index];
+          final bool selected = index == selectedIndex;
+          return ListTile(
+            dense: true,
+            selected: selected,
+            title: Text(chunk.filePath),
+            subtitle: Text(
+              'Old ${chunk.oldStart}-${chunk.oldStart + chunk.oldCount - 1} → '
+              'New ${chunk.newStart}-${chunk.newStart + chunk.newCount - 1}',
+            ),
+            onTap: () {
+              focusNode?.requestFocus();
+              onSelect(index);
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -393,9 +531,10 @@ class _ChunksPlaceholder extends StatelessWidget {
 }
 
 class _HunkLinesView extends StatelessWidget {
-  const _HunkLinesView({required this.hunk});
+  const _HunkLinesView({required this.hunk, required this.scrollable});
 
   final CodeHunk hunk;
+  final bool scrollable;
 
   @override
   Widget build(BuildContext context) {
@@ -403,19 +542,40 @@ class _HunkLinesView extends StatelessWidget {
     if (lines.isEmpty) {
       return const SizedBox.shrink();
     }
+
+    final Widget header = Text(
+      '${hunk.filePath}  (Old ${hunk.oldStart}-${hunk.oldStart + hunk.oldCount - 1} → '
+      'New ${hunk.newStart}-${hunk.newStart + hunk.newCount - 1})',
+      style: Theme.of(context)
+          .textTheme
+          .bodySmall
+          ?.copyWith(color: Colors.grey[400]),
+    );
+
+    if (scrollable) {
+      return ListView.builder(
+        padding: EdgeInsets.zero,
+        itemCount: lines.length + 1,
+        itemBuilder: (BuildContext context, int index) {
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: header,
+            );
+          }
+          final DiffLine line = lines[index - 1];
+          return _DiffLineRow(line: line);
+        },
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '${hunk.filePath}  (Old ${hunk.oldStart}-${hunk.oldStart + hunk.oldCount - 1} → '
-          'New ${hunk.newStart}-${hunk.newStart + hunk.newCount - 1})',
-          style: Theme.of(context)
-              .textTheme
-              .bodySmall
-              ?.copyWith(color: Colors.grey[400]),
-        ),
+        header,
         const SizedBox(height: 8),
         ListView.builder(
+          padding: EdgeInsets.zero,
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: lines.length,
@@ -555,7 +715,7 @@ class _HunkDiffView extends StatelessWidget {
     if (activeTab == ChangesTab.hunks) {
       final int clampedIndex = selectedIndex.clamp(0, all.length - 1);
       final CodeHunk hunk = all[clampedIndex];
-      return _HunkLinesView(hunk: hunk);
+      return _HunkLinesView(hunk: hunk, scrollable: true);
     }
 
     if (activeTab == ChangesTab.files) {
@@ -581,7 +741,7 @@ class _HunkDiffView extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (BuildContext context, int index) {
           final CodeHunk hunk = filtered[index];
-          return _HunkLinesView(hunk: hunk);
+          return _HunkLinesView(hunk: hunk, scrollable: false);
         },
       );
     }
