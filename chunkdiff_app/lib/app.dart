@@ -31,9 +31,6 @@ class HomeScreen extends ConsumerWidget {
     final AsyncValue<bool> gitAccess = ref.watch(gitAccessProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('ChunkDiff'),
-      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
