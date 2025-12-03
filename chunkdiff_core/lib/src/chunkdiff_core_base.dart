@@ -36,6 +36,7 @@ class CodeHunk {
   final int newCount;
   final String leftText;
   final String rightText;
+  final List<DiffLine> lines;
 
   const CodeHunk({
     required this.filePath,
@@ -45,6 +46,25 @@ class CodeHunk {
     required this.newCount,
     required this.leftText,
     required this.rightText,
+    required this.lines,
+  });
+}
+
+enum DiffLineStatus { context, added, removed, changed }
+
+class DiffLine {
+  final int? leftNumber;
+  final int? rightNumber;
+  final String leftText;
+  final String rightText;
+  final DiffLineStatus status;
+
+  const DiffLine({
+    required this.leftNumber,
+    required this.rightNumber,
+    required this.leftText,
+    required this.rightText,
+    required this.status,
   });
 }
 
@@ -211,7 +231,7 @@ void main() {
 }
 
 List<CodeHunk> dummyCodeHunks() {
-  return const <CodeHunk>[
+  return <CodeHunk>[
     CodeHunk(
       filePath: 'lib/src/example.dart',
       oldStart: 3,
@@ -231,6 +251,50 @@ class Greeter {
     return excited ? '$msg!' : msg;
   }
 }''',
+      lines: <DiffLine>[
+        const DiffLine(
+          leftNumber: 3,
+          rightNumber: 3,
+          leftText: 'class Greeter {',
+          rightText: 'class Greeter {',
+          status: DiffLineStatus.context,
+        ),
+        const DiffLine(
+          leftNumber: 4,
+          rightNumber: 4,
+          leftText: '  String greet(String name) {',
+          rightText: '  String greet(String name, {bool excited = false}) {',
+          status: DiffLineStatus.changed,
+        ),
+        const DiffLine(
+          leftNumber: null,
+          rightNumber: 5,
+          leftText: '',
+          rightText: "    final String msg = 'Hello, \$name';",
+          status: DiffLineStatus.added,
+        ),
+        const DiffLine(
+          leftNumber: 5,
+          rightNumber: 6,
+          leftText: "    return 'Hello, \$name';",
+          rightText: "    return excited ? '\$msg!' : msg;",
+          status: DiffLineStatus.changed,
+        ),
+        const DiffLine(
+          leftNumber: 6,
+          rightNumber: 7,
+          leftText: '  }',
+          rightText: '  }',
+          status: DiffLineStatus.context,
+        ),
+        const DiffLine(
+          leftNumber: 7,
+          rightNumber: 8,
+          leftText: '}',
+          rightText: '}',
+          status: DiffLineStatus.context,
+        ),
+      ],
     ),
     CodeHunk(
       filePath: 'lib/main.dart',
@@ -248,6 +312,36 @@ void main() {
   final Greeter greeter = Greeter();
   print(greeter.greet('World', excited: true));
 }''',
+      lines: <DiffLine>[
+        const DiffLine(
+          leftNumber: 1,
+          rightNumber: 1,
+          leftText: 'void main() {',
+          rightText: 'void main() {',
+          status: DiffLineStatus.context,
+        ),
+        const DiffLine(
+          leftNumber: 2,
+          rightNumber: 2,
+          leftText: '  final Greeter greeter = Greeter();',
+          rightText: '  final Greeter greeter = Greeter();',
+          status: DiffLineStatus.context,
+        ),
+        const DiffLine(
+          leftNumber: 3,
+          rightNumber: 3,
+          leftText: "  print(greeter.greet('World'));",
+          rightText: "  print(greeter.greet('World', excited: true));",
+          status: DiffLineStatus.removed,
+        ),
+        const DiffLine(
+          leftNumber: 4,
+          rightNumber: 4,
+          leftText: '}',
+          rightText: '}',
+          status: DiffLineStatus.context,
+        ),
+      ],
     ),
   ];
 }
@@ -546,8 +640,8 @@ Future<List<CodeHunk>> loadHunkDiffs(
     final List<String> rightLines =
         rightContent != null ? rightContent.split('\n') : <String>[];
 
-    final List<_Hunk> parsed =
-        await _parseGitHunks(repoRoot, leftRef, rightRef, file);
+    final List<_ParsedHunk> parsed =
+        await _parseGitHunksWithLines(repoRoot, leftRef, rightRef, file);
     if (parsed.isEmpty) {
       // New file or removed file: treat whole file as one hunk.
       if (rightContent != null && leftContent == null) {
@@ -561,6 +655,16 @@ Future<List<CodeHunk>> loadHunkDiffs(
             newCount: newCount,
             leftText: '',
             rightText: rightLines.join('\n'),
+            lines: List<DiffLine>.generate(
+              newCount,
+              (int i) => DiffLine(
+                leftNumber: null,
+                rightNumber: i + 1,
+                leftText: '',
+                rightText: rightLines[i],
+                status: DiffLineStatus.added,
+              ),
+            ),
           ),
         );
       } else if (leftContent != null && rightContent == null) {
@@ -574,17 +678,27 @@ Future<List<CodeHunk>> loadHunkDiffs(
             newCount: 0,
             leftText: leftLines.join('\n'),
             rightText: '',
+            lines: List<DiffLine>.generate(
+              oldCount,
+              (int i) => DiffLine(
+                leftNumber: i + 1,
+                rightNumber: null,
+                leftText: leftLines[i],
+                rightText: '',
+                status: DiffLineStatus.removed,
+              ),
+            ),
           ),
         );
       }
       continue;
     }
 
-    for (final _Hunk h in parsed) {
-      final int oldStart = h.oldStart;
-      final int oldEnd = h.oldStart + h.oldCount - 1;
-      final int newStart = h.newStart;
-      final int newEnd = h.newStart + h.newCount - 1;
+    for (final _ParsedHunk h in parsed) {
+      final int oldStart = h.header.oldStart;
+      final int oldEnd = h.header.oldStart + h.header.oldCount - 1;
+      final int newStart = h.header.newStart;
+      final int newEnd = h.header.newStart + h.header.newCount - 1;
 
       final String leftSnippet =
           _sliceLines(leftLines, oldStart, oldEnd).join('\n');
@@ -595,11 +709,12 @@ Future<List<CodeHunk>> loadHunkDiffs(
         CodeHunk(
           filePath: file,
           oldStart: oldStart,
-          oldCount: h.oldCount,
+          oldCount: h.header.oldCount,
           newStart: newStart,
-          newCount: h.newCount,
+          newCount: h.header.newCount,
           leftText: leftSnippet,
           rightText: rightSnippet,
+          lines: h.lines,
         ),
       );
     }
@@ -671,6 +786,118 @@ Future<List<_Hunk>> _parseGitHunks(
   }
 }
 
+class _ParsedHunk {
+  final _Hunk header;
+  final List<DiffLine> lines;
+
+  const _ParsedHunk({required this.header, required this.lines});
+}
+
+Future<List<_ParsedHunk>> _parseGitHunksWithLines(
+  String repoPath,
+  String leftRef,
+  String rightRef,
+  String file,
+) async {
+  try {
+    final bool useWorktree = rightRef == kWorktreeRef;
+    final List<String> args = <String>[
+      'diff',
+      '-U3',
+      leftRef,
+      if (!useWorktree) rightRef,
+      '--',
+      file,
+    ];
+    final ProcessResult result = await _runGit(
+      repoPath,
+      args,
+      logStdoutSnippet: false,
+    );
+    if (result.exitCode != 0) {
+      return <_ParsedHunk>[];
+    }
+    final String output = _decodeOutput(result.stdout);
+    final RegExp header =
+        RegExp(r'^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@');
+    final List<_ParsedHunk> parsed = <_ParsedHunk>[];
+    _Hunk? currentHeader;
+    List<DiffLine> currentLines = <DiffLine>[];
+    int currentOld = 0;
+    int currentNew = 0;
+
+    void flush() {
+      if (currentHeader != null) {
+        parsed.add(_ParsedHunk(header: currentHeader!, lines: currentLines));
+      }
+    }
+
+    for (final String raw in output.split('\n')) {
+      final RegExpMatch? m = header.firstMatch(raw);
+      if (m != null) {
+        flush();
+        final int oldStart = int.parse(m.group(1)!);
+        final int oldCount = m.group(2) != null ? int.parse(m.group(2)!) : 1;
+        final int newStart = int.parse(m.group(3)!);
+        final int newCount = m.group(4) != null ? int.parse(m.group(4)!) : 1;
+        currentHeader = _Hunk(
+          oldStart: oldStart,
+          oldCount: oldCount,
+          newStart: newStart,
+          newCount: newCount,
+        );
+        currentLines = <DiffLine>[];
+        currentOld = oldStart;
+        currentNew = newStart;
+        continue;
+      }
+
+      if (currentHeader == null) {
+        continue;
+      }
+
+      if (raw.startsWith('+')) {
+        final String text = raw.substring(1);
+        currentLines.add(DiffLine(
+          leftNumber: null,
+          rightNumber: currentNew,
+          leftText: '',
+          rightText: text,
+          status: DiffLineStatus.added,
+        ));
+        currentNew++;
+      } else if (raw.startsWith('-')) {
+        final String text = raw.substring(1);
+        currentLines.add(DiffLine(
+          leftNumber: currentOld,
+          rightNumber: null,
+          leftText: text,
+          rightText: '',
+          status: DiffLineStatus.removed,
+        ));
+        currentOld++;
+      } else if (raw.startsWith(' ')) {
+        final String text = raw.substring(1);
+        currentLines.add(DiffLine(
+          leftNumber: currentOld,
+          rightNumber: currentNew,
+          leftText: text,
+          rightText: text,
+          status: DiffLineStatus.context,
+        ));
+        currentOld++;
+        currentNew++;
+      } else {
+        // Skip other markers (e.g., \ No newline at end of file).
+      }
+    }
+    flush();
+    return parsed;
+  } catch (_) {
+    return <_ParsedHunk>[];
+  }
+}
+
 List<_Hunk> _mergeHunks(List<_Hunk> hunks, {int gapThreshold = 6}) {
   if (hunks.isEmpty) return hunks;
   final List<_Hunk> sorted = List<_Hunk>.from(hunks)
@@ -708,6 +935,40 @@ List<String> _sliceLines(List<String> lines, int start, int end) {
   final int startIdx = start - 1;
   final int endIdx = end.clamp(0, lines.length);
   return lines.sublist(startIdx, endIdx);
+}
+
+  List<DiffLine> _buildAlignedLines(
+  List<String> leftLines,
+  int leftStart,
+  List<String> rightLines,
+  int rightStart,
+) {
+  final List<DiffLine> result = <DiffLine>[];
+  final int leftLen = leftLines.length;
+  final int rightLen = rightLines.length;
+  final int maxLen = leftLen > rightLen ? leftLen : rightLen;
+  for (int i = 0; i < maxLen; i++) {
+    final String leftText = i < leftLen ? leftLines[i] : '';
+    final String rightText = i < rightLen ? rightLines[i] : '';
+    final int? leftNum = i < leftLen ? leftStart + i : null;
+    final int? rightNum = i < rightLen ? rightStart + i : null;
+    DiffLineStatus status = DiffLineStatus.context;
+    if (leftNum == null && rightNum != null) {
+      status = DiffLineStatus.added;
+    } else if (leftNum != null && rightNum == null) {
+      status = DiffLineStatus.removed;
+    } else if (leftText != rightText) {
+      status = DiffLineStatus.changed;
+    }
+    result.add(DiffLine(
+      leftNumber: leftNum,
+      rightNumber: rightNum,
+      leftText: leftText,
+      rightText: rightText,
+      status: status,
+    ));
+  }
+  return result;
 }
 
 // Logging helpers for external commands

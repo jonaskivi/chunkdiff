@@ -338,7 +338,8 @@ class _HunkList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<CodeHunk> chunks = asyncHunks.value ?? const <CodeHunk>[];
+    final List<CodeHunk> chunks =
+        asyncHunks.value ?? const <CodeHunk>[];
 
     if (chunks.isEmpty) {
       return Center(
@@ -391,6 +392,138 @@ class _ChunksPlaceholder extends StatelessWidget {
   }
 }
 
+class _HunkLinesView extends StatelessWidget {
+  const _HunkLinesView({required this.hunk});
+
+  final CodeHunk hunk;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<DiffLine> lines = hunk.lines;
+    if (lines.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${hunk.filePath}  (Old ${hunk.oldStart}-${hunk.oldStart + hunk.oldCount - 1} → '
+          'New ${hunk.newStart}-${hunk.newStart + hunk.newCount - 1})',
+          style: Theme.of(context)
+              .textTheme
+              .bodySmall
+              ?.copyWith(color: Colors.grey[400]),
+        ),
+        const SizedBox(height: 8),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: lines.length,
+          itemBuilder: (BuildContext context, int index) {
+            final DiffLine line = lines[index];
+            return _DiffLineRow(line: line);
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _DiffLineRow extends StatelessWidget {
+  const _DiffLineRow({required this.line});
+
+  final DiffLine line;
+
+  Color _bgLeft() {
+    switch (line.status) {
+      case DiffLineStatus.removed:
+        return const Color(0xFF3b1f1f);
+      case DiffLineStatus.changed:
+        return const Color(0xFF2f2424);
+      default:
+        return Colors.transparent;
+    }
+  }
+
+  Color _bgRight() {
+    switch (line.status) {
+      case DiffLineStatus.added:
+        return const Color(0xFF1f3b1f);
+      case DiffLineStatus.changed:
+        return const Color(0xFF243b24);
+      default:
+        return Colors.transparent;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final TextStyle textStyle = const TextStyle(
+      fontFamily: 'SourceCodePro',
+      fontSize: 13,
+      color: Colors.white,
+    );
+    final TextStyle numberStyle = TextStyle(
+      fontFamily: 'SourceCodePro',
+      fontSize: 12,
+      color: Colors.grey[500],
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 48,
+            child: Text(
+              line.leftNumber?.toString() ?? '',
+              textAlign: TextAlign.right,
+              style: numberStyle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: _bgLeft(),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 6),
+              child: SelectableText(
+                line.leftText,
+                style: textStyle,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 48,
+            child: Text(
+              line.rightNumber?.toString() ?? '',
+              textAlign: TextAlign.right,
+              style: numberStyle,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: _bgRight(),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 6),
+              child: SelectableText(
+                line.rightText,
+                style: textStyle,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HunkDiffView extends StatelessWidget {
   const _HunkDiffView({
     required this.asyncHunks,
@@ -422,7 +555,7 @@ class _HunkDiffView extends StatelessWidget {
     if (activeTab == ChangesTab.hunks) {
       final int clampedIndex = selectedIndex.clamp(0, all.length - 1);
       final CodeHunk hunk = all[clampedIndex];
-      return _buildPanePair(hunk.leftText, hunk.rightText);
+      return _HunkLinesView(hunk: hunk);
     }
 
     if (activeTab == ChangesTab.files) {
@@ -448,7 +581,7 @@ class _HunkDiffView extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (BuildContext context, int index) {
           final CodeHunk hunk = filtered[index];
-          return _buildPanePair(hunk.leftText, hunk.rightText);
+          return _HunkLinesView(hunk: hunk);
         },
       );
     }
@@ -456,27 +589,6 @@ class _HunkDiffView extends StatelessWidget {
     return const _ChunksPlaceholder();
   }
 
-  Widget _buildPanePair(String left, String right) {
-    final String leftText = _sanitizeText(left);
-    final String rightText = _sanitizeText(right);
-    return Row(
-      children: [
-        Expanded(
-          child: _DiffPane(
-            text: leftText,
-            backgroundColor: const Color(0xFF272822),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _DiffPane(
-            text: rightText,
-            backgroundColor: const Color(0xFF272822),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 class _SkeletonListItem extends StatelessWidget {
