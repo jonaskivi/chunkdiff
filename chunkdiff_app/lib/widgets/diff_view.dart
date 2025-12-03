@@ -14,9 +14,11 @@ class DiffView extends ConsumerStatefulWidget {
   ConsumerState<DiffView> createState() => _DiffViewState();
 }
 
-class _DiffViewState extends ConsumerState<DiffView> {
+class _DiffViewState extends ConsumerState<DiffView>
+    with SingleTickerProviderStateMixin {
   late final CodeController _leftController;
   late final CodeController _rightController;
+  late final AnimationController _shimmerController;
 
   @override
   void initState() {
@@ -32,17 +34,24 @@ class _DiffViewState extends ConsumerState<DiffView> {
       text: initialRight,
       language: dart,
     );
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
   }
 
   @override
   void dispose() {
     _leftController.dispose();
     _rightController.dispose();
+    _shimmerController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final AsyncValue<List<SymbolDiff>> asyncDiffs =
+        ref.watch(symbolDiffsProvider);
     final SymbolDiff? diff = ref.watch(selectedDiffProvider);
     final String left = _sanitizeText(diff?.leftSnippet ?? _leftController.text);
     final String right =
@@ -59,7 +68,8 @@ class _DiffViewState extends ConsumerState<DiffView> {
     final String leftRef = ref.watch(leftRefProvider);
     final String rightRef = ref.watch(rightRefProvider);
     final SymbolChange? selectedChange = ref.watch(selectedChangeProvider);
-    final bool hasChanges = changes.isNotEmpty;
+    final bool isLoading = asyncDiffs.isLoading;
+    final bool hasChanges = !isLoading && changes.isNotEmpty;
 
     return Row(
       children: [
@@ -102,46 +112,58 @@ class _DiffViewState extends ConsumerState<DiffView> {
               ),
               const SizedBox(height: 8),
               Expanded(
-                child: hasChanges
-                    ? ListView.separated(
-                        itemCount: changes.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (BuildContext _, int index) {
-                          final SymbolChange change = changes[index];
-                          final bool selected = index == selectedIndex;
-                          return ListTile(
-                            dense: true,
-                            selected: selected,
-                            title: Text(
-                              change.name,
-                              style: TextStyle(
-                                fontWeight: selected
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                              ),
-                            ),
-                            subtitle: Text(
-                              change.kind.name,
-                              style: TextStyle(
-                                color: Colors.grey[700],
-                              ),
-                            ),
-                            onTap: () => ref
-                                .read(selectedChangeIndexProvider.notifier)
-                                .state = index,
-                          );
-                        },
+                child: isLoading
+                    ? Column(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        children: [
+                          _SkeletonListItem(animation: _shimmerController),
+                          const SizedBox(height: 12),
+                          _SkeletonListItem(animation: _shimmerController),
+                          const SizedBox(height: 12),
+                          _SkeletonListItem(animation: _shimmerController),
+                        ],
                       )
-                    : Center(
-                        child: Text(
-                          'No changes for $leftRef → $rightRef',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: Colors.grey[400]),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
+                    : hasChanges
+                        ? ListView.separated(
+                            itemCount: changes.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (BuildContext _, int index) {
+                              final SymbolChange change = changes[index];
+                              final bool selected = index == selectedIndex;
+                              return ListTile(
+                                dense: true,
+                                selected: selected,
+                                title: Text(
+                                  change.name,
+                                  style: TextStyle(
+                                    fontWeight: selected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  change.kind.name,
+                                  style: TextStyle(
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                                onTap: () => ref
+                                    .read(selectedChangeIndexProvider.notifier)
+                                    .state = index,
+                              );
+                            },
+                          )
+                        : Center(
+                            child: Text(
+                              'No changes for $leftRef → $rightRef',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(color: Colors.grey[400]),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
               ),
             ],
           ),
@@ -157,35 +179,51 @@ class _DiffViewState extends ConsumerState<DiffView> {
               ),
               const SizedBox(height: 8),
               Expanded(
-                child: hasChanges
+                child: isLoading
                     ? Row(
                         children: [
                           Expanded(
-                            child: _DiffPane(
-                              title: 'Left (old)',
-                              controller: _leftController,
-                              backgroundColor: const Color(0xFFFFF3F3),
+                            child: _SkeletonPane(
+                              animation: _shimmerController,
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: _DiffPane(
-                              title: 'Right (new)',
-                              controller: _rightController,
-                              backgroundColor: const Color(0xFFF2FFF4),
+                            child: _SkeletonPane(
+                              animation: _shimmerController,
                             ),
                           ),
                         ],
                       )
-                    : Center(
-                        child: Text(
-                          'No diff content to display.',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(color: Colors.grey[400]),
-                        ),
-                      ),
+                    : hasChanges
+                        ? Row(
+                            children: [
+                              Expanded(
+                                child: _DiffPane(
+                                  title: 'Left (old)',
+                                  controller: _leftController,
+                                  backgroundColor: const Color(0xFFFFF3F3),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _DiffPane(
+                                  title: 'Right (new)',
+                                  controller: _rightController,
+                                  backgroundColor: const Color(0xFFF2FFF4),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Center(
+                            child: Text(
+                              'No diff content to display.',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(color: Colors.grey[400]),
+                            ),
+                          ),
               ),
             ],
           ),
@@ -289,6 +327,96 @@ class _DiffPane extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SkeletonPane extends StatelessWidget {
+  const _SkeletonPane({required this.animation});
+
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: SkeletonBox(
+        height: double.infinity,
+        animation: animation,
+      ),
+    );
+  }
+}
+
+class _SkeletonListItem extends StatelessWidget {
+  const _SkeletonListItem({required this.animation});
+
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (BuildContext context, _) {
+        return SizedBox(
+          height: 80,
+          child: Row(
+            children: [
+              Expanded(
+                child: SkeletonBox(
+                  height: 70,
+                  animation: animation,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class SkeletonBox extends StatelessWidget {
+  const SkeletonBox({
+    required this.height,
+    required this.animation,
+    this.width,
+    this.borderRadius = const BorderRadius.all(Radius.circular(10)),
+  });
+
+  final double height;
+  final double? width;
+  final BorderRadius borderRadius;
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color baseColor = Colors.grey.shade800;
+    final Color highlightColor = Colors.grey.shade700;
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (BuildContext context, _) {
+        final double t = animation.value;
+        final double dx = (t * 2.0) - 1.0; // -1 to 1
+        return Container(
+          height: height,
+          width: width,
+          decoration: BoxDecoration(
+            borderRadius: borderRadius,
+            gradient: LinearGradient(
+              begin: Alignment(dx, 0),
+              end: Alignment(dx + 1, 0),
+              colors: <Color>[
+                baseColor,
+                highlightColor,
+                baseColor,
+              ],
+              stops: const <double>[0.0, 0.5, 1.0],
+            ),
+          ),
+        );
+      },
     );
   }
 }
