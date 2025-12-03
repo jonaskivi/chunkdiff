@@ -96,6 +96,22 @@ final Provider<SymbolChange?> selectedChangeProvider =
   return changes[index];
 });
 
+const List<String> kStubRefs = <String>[
+  'HEAD',
+  'HEAD~1',
+  'main',
+  'feature/demo',
+];
+
+final Provider<List<String>> refOptionsProvider =
+    Provider<List<String>>((Ref ref) => kStubRefs);
+
+final StateProvider<String> leftRefProvider =
+    StateProvider<String>((Ref ref) => 'HEAD~1');
+
+final StateProvider<String> rightRefProvider =
+    StateProvider<String>((Ref ref) => 'HEAD');
+
 const Map<String, DiffTextPair> _sampleDiffs = <String, DiffTextPair>{
   'ChunkDiffExample.greet': DiffTextPair(
     left: '''

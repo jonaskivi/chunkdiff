@@ -1,9 +1,9 @@
-import 'package:chunkdiff_app/models/app_settings.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/app_settings.dart';
 import '../providers.dart';
 import '../services/git_service.dart';
 
@@ -99,6 +99,9 @@ class _RepoToolbarState extends ConsumerState<RepoToolbar> {
     final AsyncValue<AppSettings> settings = ref.watch(settingsControllerProvider);
     final AsyncValue<GitValidationResult> validation =
         ref.watch(repoValidationProvider);
+    final List<String> refOptions = ref.watch(refOptionsProvider);
+    final String leftRef = ref.watch(leftRefProvider);
+    final String rightRef = ref.watch(rightRefProvider);
 
     final String repoPath = settings.maybeWhen(
       data: (AppSettings data) => data.gitFolder ?? 'No Git folder selected',
@@ -124,27 +127,6 @@ class _RepoToolbarState extends ConsumerState<RepoToolbar> {
           label: const Text('Open folder...'),
         ),
         const SizedBox(width: 12),
-        Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                repoPath,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                statusText,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: isRepo ? Colors.green[700] : Colors.red[700],
-                    ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
         ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 320),
           child: TextField(
@@ -162,6 +144,50 @@ class _RepoToolbarState extends ConsumerState<RepoToolbar> {
         OutlinedButton(
           onPressed: () => _applyManualPath(context),
           child: const Text('Use path'),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 160,
+          child: DropdownButtonFormField<String>(
+            value: leftRef,
+            decoration: const InputDecoration(
+              labelText: 'Left ref',
+              isDense: true,
+            ),
+            items: refOptions
+                .map((String ref) => DropdownMenuItem<String>(
+                      value: ref,
+                      child: Text(ref),
+                    ))
+                .toList(),
+            onChanged: (String? value) {
+              if (value != null) {
+                ref.read(leftRefProvider.notifier).state = value;
+              }
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 160,
+          child: DropdownButtonFormField<String>(
+            value: rightRef,
+            decoration: const InputDecoration(
+              labelText: 'Right ref',
+              isDense: true,
+            ),
+            items: refOptions
+                .map((String ref) => DropdownMenuItem<String>(
+                      value: ref,
+                      child: Text(ref),
+                    ))
+                .toList(),
+            onChanged: (String? value) {
+              if (value != null) {
+                ref.read(rightRefProvider.notifier).state = value;
+              }
+            },
+          ),
         ),
         const SizedBox(width: 12),
         OutlinedButton.icon(
