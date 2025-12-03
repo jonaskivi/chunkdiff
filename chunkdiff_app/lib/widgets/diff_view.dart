@@ -70,9 +70,12 @@ class _DiffViewState extends ConsumerState<DiffView>
     final String leftRef = ref.watch(leftRefProvider);
     final String rightRef = ref.watch(rightRefProvider);
     final SymbolChange? selectedChange = ref.watch(selectedChangeProvider);
-    final bool isLoading =
-        asyncDiffs.isLoading || asyncChunks.isLoading && changes.isEmpty;
-    final bool hasChanges = !isLoading && changes.isNotEmpty;
+    final bool hasChunkData =
+        asyncChunks.hasValue && (asyncChunks.value?.isNotEmpty ?? false);
+    final bool isLoading = (asyncDiffs.isLoading || asyncChunks.isLoading) &&
+        !hasChunkData &&
+        changes.isEmpty;
+    final bool hasChanges = (changes.isNotEmpty && !isLoading) || hasChunkData;
     final ChangesTab activeTab = ref.watch(changesTabProvider);
     final int selectedChunkIndex = ref.watch(selectedChunkIndexProvider);
 
@@ -134,9 +137,15 @@ class _DiffViewState extends ConsumerState<DiffView>
                             : _ChunkList(
                                 asyncChunks: asyncChunks,
                                 selectedChunkIndex: selectedChunkIndex,
-                                onSelect: (int idx) => ref
-                                    .read(selectedChunkIndexProvider.notifier)
-                                    .state = idx,
+                                onSelect: (int idx) {
+                                  ref
+                                      .read(selectedChunkIndexProvider.notifier)
+                                      .state = idx;
+                                  ref
+                                      .read(
+                                          settingsControllerProvider.notifier)
+                                      .setSelectedChunkIndex(idx);
+                                },
                               ))
                         : Center(
                             child: Text(

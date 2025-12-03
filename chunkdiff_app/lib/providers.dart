@@ -53,6 +53,14 @@ class SettingsController extends AutoDisposeAsyncNotifier<AppSettings> {
     state = AsyncData(next);
     ref.invalidate(repoValidationProvider);
   }
+
+  Future<void> setSelectedChunkIndex(int index) async {
+    final SettingsRepository repo = ref.read(settingsRepositoryProvider);
+    final AppSettings next = (state.value ?? const AppSettings())
+        .copyWith(selectedChunkIndex: index);
+    await repo.save(next);
+    state = AsyncData(next);
+  }
 }
 
 final AutoDisposeAsyncNotifierProvider<SettingsController, AppSettings>
@@ -82,7 +90,13 @@ final FutureProvider<GitValidationResult> repoValidationProvider =
 });
 
 final StateProvider<int> selectedChangeIndexProvider =
-    StateProvider<int>((Ref ref) => 0);
+    StateProvider<int>((Ref ref) {
+  final AsyncValue<AppSettings> settings = ref.watch(settingsControllerProvider);
+  return settings.maybeWhen(
+    data: (AppSettings s) => s.selectedChunkIndex,
+    orElse: () => 0,
+  );
+});
 
 final Provider<SymbolChange?> selectedChangeProvider =
     Provider<SymbolChange?>((Ref ref) {
@@ -225,7 +239,13 @@ final Provider<SymbolDiff?> selectedDiffProvider =
 enum ChangesTab { files, chunks }
 
 final StateProvider<ChangesTab> changesTabProvider =
-    StateProvider<ChangesTab>((Ref ref) => ChangesTab.files);
+    StateProvider<ChangesTab>((Ref ref) => ChangesTab.chunks);
 
 final StateProvider<int> selectedChunkIndexProvider =
-    StateProvider<int>((Ref ref) => 0);
+    StateProvider<int>((Ref ref) {
+  final AsyncValue<AppSettings> settings = ref.watch(settingsControllerProvider);
+  return settings.maybeWhen(
+    data: (AppSettings s) => s.selectedChunkIndex,
+    orElse: () => 0,
+  );
+});
