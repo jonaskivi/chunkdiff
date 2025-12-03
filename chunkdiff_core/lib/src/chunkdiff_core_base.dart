@@ -16,6 +16,10 @@ class CodeChunk {
   final int newEnd;
   final String leftText;
   final String rightText;
+  final String name;
+  final SymbolKind kind;
+  final bool ignored;
+  final List<DiffLine> lines;
 
   const CodeChunk({
     required this.filePath,
@@ -25,6 +29,10 @@ class CodeChunk {
     required this.newEnd,
     required this.leftText,
     required this.rightText,
+    required this.name,
+    required this.kind,
+    required this.lines,
+    this.ignored = false,
   });
 }
 
@@ -48,6 +56,9 @@ class CodeHunk {
     required this.rightText,
     required this.lines,
   });
+
+  int get oldEnd => oldStart + oldCount - 1;
+  int get newEnd => newStart + newCount - 1;
 }
 
 enum DiffLineStatus { context, added, removed, changed }
@@ -185,47 +196,106 @@ void main() {
 }
 
 List<CodeChunk> dummyCodeChunks() {
-  return const <CodeChunk>[
+  return <CodeChunk>[
     CodeChunk(
       filePath: 'lib/src/example.dart',
       oldStart: 3,
-      oldEnd: 10,
+      oldEnd: 8,
       newStart: 3,
-      newEnd: 12,
+      newEnd: 9,
       leftText: r'''
 class Greeter {
   String greet(String name) {
     return 'Hello, $name';
   }
-}
-''',
-      rightText: r'''
-class Greeter {
-  String greet(String name, {bool excited = false}) {
-    final String msg = 'Hello, $name';
-    return excited ? '$msg!' : msg;
-  }
-}
-''',
+}''',
+      rightText: '',
+      name: 'Greeter.greet',
+      kind: SymbolKind.method,
+      ignored: false,
+      lines: const <DiffLine>[
+        DiffLine(
+          leftNumber: 3,
+          rightNumber: null,
+          leftText: 'class Greeter {',
+          rightText: '',
+          status: DiffLineStatus.context,
+        ),
+        DiffLine(
+          leftNumber: 4,
+          rightNumber: null,
+          leftText: '  String greet(String name) {',
+          rightText: '',
+          status: DiffLineStatus.changed,
+        ),
+        DiffLine(
+          leftNumber: 5,
+          rightNumber: null,
+          leftText: "    return 'Hello, \$name';",
+          rightText: '',
+          status: DiffLineStatus.changed,
+        ),
+        DiffLine(
+          leftNumber: 6,
+          rightNumber: null,
+          leftText: '  }',
+          rightText: '',
+          status: DiffLineStatus.context,
+        ),
+        DiffLine(
+          leftNumber: 7,
+          rightNumber: null,
+          leftText: '}',
+          rightText: '',
+          status: DiffLineStatus.context,
+        ),
+      ],
     ),
     CodeChunk(
       filePath: 'lib/main.dart',
       oldStart: 1,
-      oldEnd: 6,
       newStart: 1,
-      newEnd: 7,
+      oldEnd: 5,
+      newEnd: 6,
       leftText: r'''
 void main() {
   final Greeter greeter = Greeter();
   print(greeter.greet('World'));
-}
-''',
-      rightText: r'''
-void main() {
-  final Greeter greeter = Greeter();
-  print(greeter.greet('World', excited: true));
-}
-''',
+}''',
+      rightText: '',
+      name: 'main',
+      kind: SymbolKind.function,
+      ignored: false,
+      lines: const <DiffLine>[
+        DiffLine(
+          leftNumber: 1,
+          rightNumber: null,
+          leftText: 'void main() {',
+          rightText: '',
+          status: DiffLineStatus.context,
+        ),
+        DiffLine(
+          leftNumber: 2,
+          rightNumber: null,
+          leftText: '  final Greeter greeter = Greeter();',
+          rightText: '',
+          status: DiffLineStatus.context,
+        ),
+        DiffLine(
+          leftNumber: 3,
+          rightNumber: null,
+          leftText: "  print(greeter.greet('World'));",
+          rightText: '',
+          status: DiffLineStatus.changed,
+        ),
+        DiffLine(
+          leftNumber: 4,
+          rightNumber: null,
+          leftText: '}',
+          rightText: '',
+          status: DiffLineStatus.context,
+        ),
+      ],
     ),
   ];
 }
@@ -251,43 +321,43 @@ class Greeter {
     return excited ? '$msg!' : msg;
   }
 }''',
-      lines: <DiffLine>[
-        const DiffLine(
+      lines: const <DiffLine>[
+        DiffLine(
           leftNumber: 3,
           rightNumber: 3,
           leftText: 'class Greeter {',
           rightText: 'class Greeter {',
           status: DiffLineStatus.context,
         ),
-        const DiffLine(
+        DiffLine(
           leftNumber: 4,
           rightNumber: 4,
           leftText: '  String greet(String name) {',
           rightText: '  String greet(String name, {bool excited = false}) {',
           status: DiffLineStatus.changed,
         ),
-        const DiffLine(
+        DiffLine(
           leftNumber: null,
           rightNumber: 5,
           leftText: '',
           rightText: "    final String msg = 'Hello, \$name';",
           status: DiffLineStatus.added,
         ),
-        const DiffLine(
+        DiffLine(
           leftNumber: 5,
           rightNumber: 6,
           leftText: "    return 'Hello, \$name';",
           rightText: "    return excited ? '\$msg!' : msg;",
           status: DiffLineStatus.changed,
         ),
-        const DiffLine(
+        DiffLine(
           leftNumber: 6,
           rightNumber: 7,
           leftText: '  }',
           rightText: '  }',
           status: DiffLineStatus.context,
         ),
-        const DiffLine(
+        DiffLine(
           leftNumber: 7,
           rightNumber: 8,
           leftText: '}',
@@ -312,29 +382,29 @@ void main() {
   final Greeter greeter = Greeter();
   print(greeter.greet('World', excited: true));
 }''',
-      lines: <DiffLine>[
-        const DiffLine(
+      lines: const <DiffLine>[
+        DiffLine(
           leftNumber: 1,
           rightNumber: 1,
           leftText: 'void main() {',
           rightText: 'void main() {',
           status: DiffLineStatus.context,
         ),
-        const DiffLine(
+        DiffLine(
           leftNumber: 2,
           rightNumber: 2,
           leftText: '  final Greeter greeter = Greeter();',
           rightText: '  final Greeter greeter = Greeter();',
           status: DiffLineStatus.context,
         ),
-        const DiffLine(
+        DiffLine(
           leftNumber: 3,
           rightNumber: 3,
           leftText: "  print(greeter.greet('World'));",
           rightText: "  print(greeter.greet('World', excited: true));",
           status: DiffLineStatus.removed,
         ),
-        const DiffLine(
+        DiffLine(
           leftNumber: 4,
           rightNumber: 4,
           leftText: '}',
@@ -347,132 +417,484 @@ void main() {
 }
 
 Future<bool> isGitRepo(String path) async {
-  try {
-    final ProcessResult result =
-        await _runGit(path, <String>['rev-parse', '--is-inside-work-tree']);
-    return result.exitCode == 0 &&
-        (result.stdout as String?)?.trim().toLowerCase() == 'true';
-  } catch (_) {
-    // In sandboxed environments, process execution may be blocked.
-    return false;
-  }
+  final ProcessResult result =
+      await _runGit(path, <String>['rev-parse', '--is-inside-work-tree']);
+  final String out = _decodeOutput(result.stdout).trim();
+  return result.exitCode == 0 && out == 'true';
 }
 
-Future<List<String>> listGitRefs(
-  String path, {
-  int limit = 20,
-  bool strict = false,
-}) async {
-  try {
-    final ProcessResult result = await Process.run(
-      'git',
-      <String>[
-        'for-each-ref',
-        '--format=%(refname:short)',
-        '--count=$limit',
-        'refs/heads',
-        'refs/remotes',
-      ],
-      workingDirectory: path,
-    );
-    if (result.exitCode != 0) {
-      if (strict) {
-        throw ProcessException(
-          'git',
-          <String>['for-each-ref'],
-          result.stderr,
-          result.exitCode,
-        );
-      }
-      return <String>[];
-    }
-    final String stdout = (result.stdout as String?) ?? '';
-    return stdout
-        .split('\n')
-        .map((String line) => line.trim())
-        .where((String line) => line.isNotEmpty)
-        .toList();
-  } catch (e) {
-    if (strict) {
-      rethrow;
-    }
-    // In sandboxed environments, process execution may be blocked.
+Future<List<String>> listGitRefs(String repoPath) async {
+  final ProcessResult result = await _runGit(repoPath, <String>[
+    'for-each-ref',
+    '--format=%(refname:short)',
+    'refs/heads',
+    'refs/remotes',
+  ]);
+  if (result.exitCode != 0) {
     return <String>[];
   }
+  final List<String> lines =
+      _decodeOutput(result.stdout).split('\n').where((String l) => l.isNotEmpty).toList();
+  lines.sort();
+  return lines;
 }
 
-Future<String?> gitRoot(String path) async {
-  try {
-    final ProcessResult result =
-        await _runGit(path, <String>['rev-parse', '--show-toplevel']);
-    if (result.exitCode != 0) {
-      return null;
+Future<List<SymbolDiff>> loadSymbolDiffs(
+  String repo,
+  String leftRef,
+  String rightRef,
+) async {
+  final List<String> args = <String>['diff', '--name-only', '--no-color'];
+  if (rightRef == kWorktreeRef) {
+    args.add(leftRef);
+  } else {
+    args.addAll(<String>[leftRef, rightRef]);
+  }
+  final ProcessResult result = await _runGit(repo, args);
+  if (result.exitCode != 0) {
+    return <SymbolDiff>[];
+  }
+  final List<String> files = _decodeOutput(result.stdout)
+      .split('\n')
+      .where((String l) => l.trim().isNotEmpty)
+      .toList();
+  return files
+      .map(
+        (String path) => SymbolDiff(
+          change: SymbolChange(
+            name: path,
+            kind: SymbolKind.other,
+            beforePath: path,
+            afterPath: path,
+          ),
+          leftSnippet: '',
+          rightSnippet: '',
+        ),
+      )
+      .toList();
+}
+
+Future<List<CodeHunk>> loadHunkDiffs(
+  String repo,
+  String leftRef,
+  String rightRef,
+) async {
+  final List<String> args = <String>['diff', '--no-color'];
+  if (rightRef == kWorktreeRef) {
+    args.add(leftRef);
+  } else {
+    args.addAll(<String>[leftRef, rightRef]);
+  }
+  final ProcessResult result = await _runGit(repo, args);
+  if (result.exitCode != 0) {
+    return <CodeHunk>[];
+  }
+  final String output = _decodeOutput(result.stdout);
+  return _parseGitHunks(output);
+}
+
+Future<List<CodeChunk>> loadChunkDiffs(
+  String repo,
+  String leftRef,
+  String rightRef,
+) async {
+  final List<CodeHunk> hunks = await loadHunkDiffs(repo, leftRef, rightRef);
+  final Map<String, String?> leftCache = <String, String?>{};
+  final Map<String, String?> rightCache = <String, String?>{};
+
+  Future<String?> readFile(String path, String ref) async {
+    final Map<String, String?> cache =
+        ref == rightRef ? rightCache : leftCache;
+    if (cache.containsKey(path)) {
+      return cache[path];
     }
-    final String stdout = (result.stdout as String?) ?? '';
-    return stdout.trim().isEmpty ? null : stdout.trim();
-  } catch (_) {
+    final String? text = await _readFileForRef(repo, ref, path);
+    cache[path] = text;
+    return text;
+  }
+
+  final List<CodeChunk> chunks = <CodeChunk>[];
+  for (final CodeHunk hunk in hunks) {
+    final int lookupLine = hunk.oldStart > 0 ? hunk.oldStart : hunk.newStart;
+    String? fileText = await readFile(hunk.filePath, leftRef);
+    String usedRef = leftRef;
+    if (fileText == null || fileText.isEmpty) {
+      fileText = await readFile(hunk.filePath, rightRef);
+      usedRef = rightRef;
+    }
+    if (fileText == null || fileText.isEmpty) {
+      chunks.add(CodeChunk(
+        filePath: hunk.filePath,
+        oldStart: hunk.oldStart,
+        oldEnd: hunk.oldEnd,
+        newStart: hunk.newStart,
+        newEnd: hunk.newEnd,
+        leftText: hunk.leftText,
+        rightText: hunk.rightText,
+        name: 'Ignored',
+        kind: SymbolKind.other,
+        ignored: true,
+        lines: hunk.lines,
+      ));
+      continue;
+    }
+
+    final List<String> fileLines = fileText.split('\n');
+    final _ParentInfo? parent =
+        _findParent(fileLines, lookupLine == 0 ? 1 : lookupLine);
+
+    if (parent == null) {
+      chunks.add(CodeChunk(
+        filePath: hunk.filePath,
+        oldStart: hunk.oldStart,
+        oldEnd: hunk.oldEnd,
+        newStart: hunk.newStart,
+        newEnd: hunk.newEnd,
+        leftText: hunk.leftText,
+        rightText: hunk.rightText,
+        name: 'Ignored',
+        kind: SymbolKind.other,
+        ignored: true,
+        lines: hunk.lines,
+      ));
+      continue;
+    }
+
+    final int startIdx = parent.startLine - 1;
+    final int endIdx = parent.endLine - 1;
+    final List<String> parentLines =
+        fileLines.sublist(startIdx, endIdx + 1).toList();
+    final String leftText = parentLines.join('\n');
+    final List<DiffLine> chunkLines =
+        _buildChunkLines(parentLines, parent.startLine, hunk.lines);
+
+    chunks.add(CodeChunk(
+      filePath: hunk.filePath,
+      oldStart: parent.startLine,
+      oldEnd: parent.endLine,
+      newStart: hunk.newStart,
+      newEnd: hunk.newEnd,
+      leftText: leftText,
+      rightText: usedRef == leftRef ? '' : leftText,
+      name: parent.name,
+      kind: parent.kind,
+      ignored: false,
+      lines: chunkLines,
+    ));
+  }
+  return chunks;
+}
+
+// --- Internal helpers ---
+
+Future<ProcessResult> _runGit(String repo, List<String> args) async {
+  print('[chunkdiff_core] RUN git ${args.join(' ')} (cwd: $repo)');
+  final ProcessResult result = await Process.run(
+    'git',
+    args,
+    workingDirectory: repo,
+    stdoutEncoding: utf8,
+    stderrEncoding: utf8,
+  );
+  final String stdoutStr = _decodeOutput(result.stdout);
+  final String stderrStr = _decodeOutput(result.stderr);
+  print(
+      '[chunkdiff_core] EXIT ${result.exitCode} for git ${args.join(' ')} (cwd: $repo)');
+  if (stdoutStr.isNotEmpty) {
+    print('[chunkdiff_core] STDOUT:\n$stdoutStr');
+  }
+  if (stderrStr.isNotEmpty) {
+    print('[chunkdiff_core] STDERR:\n$stderrStr');
+  }
+  return result;
+}
+
+String _decodeOutput(dynamic data) {
+  if (data == null) {
+    return '';
+  }
+  if (data is String) {
+    return data;
+  }
+  if (data is List<int>) {
+    return utf8.decode(data, allowMalformed: true);
+  }
+  return data.toString();
+}
+
+List<CodeHunk> _parseGitHunks(String diffOutput) {
+  final List<CodeHunk> hunks = <CodeHunk>[];
+  final List<String> lines = diffOutput.split('\n');
+
+  String? currentFile;
+  int? oldStart;
+  int? oldCount;
+  int? newStart;
+  int? newCount;
+  final List<DiffLine> currentLines = <DiffLine>[];
+  final List<String> leftCollector = <String>[];
+  final List<String> rightCollector = <String>[];
+  int currentOldLine = 0;
+  int currentNewLine = 0;
+
+  void flushHunk() {
+    if (currentFile == null ||
+        oldStart == null ||
+        oldCount == null ||
+        newStart == null ||
+        newCount == null ||
+        currentLines.isEmpty) {
+      currentLines.clear();
+      leftCollector.clear();
+      rightCollector.clear();
+      return;
+    }
+    hunks.add(CodeHunk(
+      filePath: currentFile!,
+      oldStart: oldStart!,
+      oldCount: oldCount!,
+      newStart: newStart!,
+      newCount: newCount!,
+      leftText: leftCollector.join('\n'),
+      rightText: rightCollector.join('\n'),
+      lines: List<DiffLine>.from(currentLines),
+    ));
+    currentLines.clear();
+    leftCollector.clear();
+    rightCollector.clear();
+  }
+
+  for (int i = 0; i < lines.length; i++) {
+    final String line = lines[i];
+    if (line.startsWith('diff --git')) {
+      flushHunk();
+      final List<String> parts = line.split(' ');
+      if (parts.length >= 4) {
+        final String bPath = parts[3];
+        currentFile = bPath.replaceFirst('b/', '');
+      }
+      continue;
+    }
+    if (line.startsWith('@@')) {
+      flushHunk();
+      final RegExpMatch? match =
+          RegExp(r'@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@').firstMatch(line);
+      if (match != null) {
+        oldStart = int.parse(match.group(1)!);
+        oldCount = match.group(2)!.isEmpty ? 1 : int.parse(match.group(2)!);
+        newStart = int.parse(match.group(3)!);
+        newCount = match.group(4)!.isEmpty ? 1 : int.parse(match.group(4)!);
+        currentOldLine = oldStart!;
+        currentNewLine = newStart!;
+      }
+      continue;
+    }
+    if (line.startsWith('+') ||
+        line.startsWith('-') ||
+        line.startsWith(' ') ||
+        line.isEmpty ||
+        line.startsWith('\\ No newline at end of file')) {
+      if (line.startsWith('\\')) {
+        continue;
+      }
+
+      if (line.startsWith('-') && i + 1 < lines.length && lines[i + 1].startsWith('+')) {
+        // Treat a -/+ pair as a single changed line.
+        final String left = line.substring(1);
+        final String right = lines[i + 1].substring(1);
+        currentLines.add(DiffLine(
+          leftNumber: currentOldLine,
+          rightNumber: currentNewLine,
+          leftText: left,
+          rightText: right,
+          status: DiffLineStatus.changed,
+        ));
+        leftCollector.add(left);
+        rightCollector.add(right);
+        currentOldLine++;
+        currentNewLine++;
+        i++; // consume the added line
+        continue;
+      }
+
+      if (line.startsWith('-')) {
+        final String text = line.substring(1);
+        currentLines.add(DiffLine(
+          leftNumber: currentOldLine,
+          rightNumber: null,
+          leftText: text,
+          rightText: '',
+          status: DiffLineStatus.removed,
+        ));
+        leftCollector.add(text);
+        currentOldLine++;
+      } else if (line.startsWith('+')) {
+        final String text = line.substring(1);
+        currentLines.add(DiffLine(
+          leftNumber: null,
+          rightNumber: currentNewLine,
+          leftText: '',
+          rightText: text,
+          status: DiffLineStatus.added,
+        ));
+        rightCollector.add(text);
+        currentNewLine++;
+      } else {
+        final String text = line.isEmpty ? '' : line.substring(1);
+        currentLines.add(DiffLine(
+          leftNumber: currentOldLine,
+          rightNumber: currentNewLine,
+          leftText: text,
+          rightText: text,
+          status: DiffLineStatus.context,
+        ));
+        leftCollector.add(text);
+        rightCollector.add(text);
+        currentOldLine++;
+        currentNewLine++;
+      }
+    }
+  }
+  flushHunk();
+  return hunks;
+}
+
+class _ParentInfo {
+  final String name;
+  final SymbolKind kind;
+  final int startLine;
+  final int endLine;
+
+  const _ParentInfo({
+    required this.name,
+    required this.kind,
+    required this.startLine,
+    required this.endLine,
+  });
+}
+
+_ParentInfo? _findParent(List<String> lines, int startLine) {
+  final int startIdx = (startLine - 1).clamp(0, lines.length - 1);
+  int foundIdx = startIdx;
+  String? name;
+  SymbolKind kind = SymbolKind.other;
+
+  for (int i = startIdx; i >= 0; i--) {
+    final String line = lines[i];
+    final RegExp classRe = RegExp(r'^\s*class\s+(\w+)');
+    final RegExp enumRe = RegExp(r'^\s*enum\s+(\w+)');
+    final RegExp funcRe = RegExp(r'^\s*[A-Za-z0-9_<>\[\]\?]+\s+(\w+)\s*\(');
+
+    final RegExpMatch? classMatch = classRe.firstMatch(line);
+    final RegExpMatch? enumMatch = enumRe.firstMatch(line);
+    final RegExpMatch? funcMatch = funcRe.firstMatch(line);
+    if (classMatch != null) {
+      name = classMatch.group(1)!;
+      kind = SymbolKind.classType;
+      foundIdx = i;
+      break;
+    }
+    if (enumMatch != null) {
+      name = enumMatch.group(1)!;
+      kind = SymbolKind.enumType;
+      foundIdx = i;
+      break;
+    }
+    if (funcMatch != null) {
+      name = funcMatch.group(1)!;
+      kind = SymbolKind.function;
+      foundIdx = i;
+      break;
+    }
+  }
+
+  if (name == null) {
     return null;
   }
+
+  int braceBalance = 0;
+  int endIdx = lines.length - 1;
+  for (int i = foundIdx; i < lines.length; i++) {
+    final String line = lines[i];
+    for (final String char in line.split('')) {
+      if (char == '{') braceBalance++;
+      if (char == '}') braceBalance--;
+    }
+    if (braceBalance <= 0 && i > foundIdx) {
+      endIdx = i;
+      break;
+    }
+  }
+
+  return _ParentInfo(
+    name: name,
+    kind: kind,
+    startLine: foundIdx + 1,
+    endLine: endIdx + 1,
+  );
 }
 
-Future<List<String>> listChangedFiles(
-  String path,
-  String leftRef,
-  String rightRef,
-) async {
-  return listChangedFilesInScope(path, leftRef, rightRef, null);
+List<DiffLine> _buildChunkLines(
+  List<String> parentLines,
+  int parentStart,
+  List<DiffLine> hunkLines,
+) {
+  final List<DiffLine> result = <DiffLine>[];
+  int currentLeft = parentStart;
+
+  for (final DiffLine line in hunkLines) {
+    final int? leftNumber = line.leftNumber;
+    if (leftNumber != null) {
+      while (currentLeft < leftNumber &&
+          currentLeft <= parentStart + parentLines.length - 1) {
+        final String text = parentLines[currentLeft - parentStart];
+        result.add(DiffLine(
+          leftNumber: currentLeft,
+          rightNumber: currentLeft,
+          leftText: text,
+          rightText: text,
+          status: DiffLineStatus.context,
+        ));
+        currentLeft++;
+      }
+      result.add(line);
+      currentLeft = leftNumber + 1;
+    } else {
+      result.add(line);
+    }
+  }
+
+  final int parentEnd = parentStart + parentLines.length - 1;
+  while (currentLeft <= parentEnd) {
+    final String text = parentLines[currentLeft - parentStart];
+    result.add(DiffLine(
+      leftNumber: currentLeft,
+      rightNumber: currentLeft,
+      leftText: text,
+      rightText: text,
+      status: DiffLineStatus.context,
+    ));
+    currentLeft++;
+  }
+  return result;
 }
 
-Future<List<String>> listChangedFilesInScope(
+Future<String?> _readFileForRef(
+  String repo,
+  String ref,
   String path,
-  String leftRef,
-  String rightRef,
-  String? pathSpec,
 ) async {
   try {
-    final bool useWorktree = rightRef == kWorktreeRef;
-    final ProcessResult result = await _runGit(path, <String>[
-      'diff',
-      '--name-only',
-      leftRef,
-      if (!useWorktree) rightRef,
-      if (pathSpec != null) pathSpec,
-    ]);
-    if (result.exitCode != 0) {
-      return <String>[];
-    }
-    final String stdout = (result.stdout as String?) ?? '';
-    return stdout
-        .split('\n')
-        .map((String line) => line.trim())
-        .where((String line) => line.isNotEmpty)
-        .toList();
-  } catch (_) {
-    return <String>[];
-  }
-}
-
-Future<String?> fileContentAtRef(
-  String path,
-  String ref,
-  String filePath,
-) async {
-  if (ref == kWorktreeRef) {
-    try {
-      final File file = File(p.join(path, filePath));
+    if (ref == kWorktreeRef) {
+      final File file = File(p.join(repo, path));
       if (!await file.exists()) {
         return null;
       }
       final List<int> bytes = await file.readAsBytes();
       return utf8.decode(bytes, allowMalformed: true);
-    } catch (_) {
-      return null;
     }
-  }
-  try {
     final ProcessResult result =
-        await _runGit(path, <String>['show', '$ref:$filePath'],
-            logStdoutSnippet: false);
+        await _runGit(repo, <String>['show', '$ref:$path']);
     if (result.exitCode != 0) {
       return null;
     }
@@ -480,556 +902,4 @@ Future<String?> fileContentAtRef(
   } catch (_) {
     return null;
   }
-}
-
-Future<List<SymbolDiff>> loadSymbolDiffs(
-  String repoPath,
-  String leftRef,
-  String rightRef, {
-  bool dartOnly = true,
-}) async {
-  final bool repoOk = await isGitRepo(repoPath);
-  if (!repoOk) {
-    return <SymbolDiff>[];
-  }
-
-  final String? root = await gitRoot(repoPath);
-  final String repoRoot = root ?? repoPath;
-  final bool isSubdir = root != null && !p.equals(p.normalize(repoPath), root);
-  final String? relativeScope =
-      isSubdir ? p.relative(repoPath, from: repoRoot) : null;
-
-  final List<String> files = await listChangedFilesInScope(
-    repoRoot,
-    leftRef,
-    rightRef,
-    relativeScope,
-  );
-  final Iterable<String> filtered = dartOnly
-      ? files.where((String f) => f.endsWith('.dart'))
-      : files;
-
-  final List<SymbolDiff> diffs = <SymbolDiff>[];
-  for (final String file in filtered) {
-    final String? left = await fileContentAtRef(repoRoot, leftRef, file);
-    final String? right = await fileContentAtRef(repoRoot, rightRef, file);
-    diffs.add(
-      SymbolDiff(
-        change: SymbolChange(
-          name: file,
-          kind: SymbolKind.other,
-          beforePath: file,
-          afterPath: file,
-        ),
-        leftSnippet: left ?? '',
-        rightSnippet: right ?? '',
-      ),
-    );
-  }
-
-  return diffs;
-}
-
-Future<List<CodeChunk>> loadChunkDiffs(
-  String repoPath,
-  String leftRef,
-  String rightRef, {
-  bool dartOnly = true,
-}) async {
-  final bool repoOk = await isGitRepo(repoPath);
-  if (!repoOk) {
-    return <CodeChunk>[];
-  }
-
-  final String? root = await gitRoot(repoPath);
-  final String repoRoot = root ?? repoPath;
-  final bool isSubdir = root != null && !p.equals(p.normalize(repoPath), root);
-  final String? relativeScope =
-      isSubdir ? p.relative(repoPath, from: repoRoot) : null;
-
-  final List<String> files = await listChangedFilesInScope(
-    repoRoot,
-    leftRef,
-    rightRef,
-    relativeScope,
-  );
-  final Iterable<String> filtered = dartOnly
-      ? files.where((String f) => f.endsWith('.dart'))
-      : files;
-
-  final List<CodeChunk> chunks = <CodeChunk>[];
-  for (final String file in filtered) {
-    final List<_Hunk> hunks =
-        await _parseGitHunks(repoRoot, leftRef, rightRef, file);
-    if (hunks.isEmpty) {
-      continue;
-    }
-    final List<_Hunk> merged = _mergeHunks(hunks, gapThreshold: 6);
-
-    final String? leftContent = await fileContentAtRef(repoRoot, leftRef, file);
-    final String? rightContent =
-        await fileContentAtRef(repoRoot, rightRef, file);
-    if (leftContent == null || rightContent == null) {
-      continue;
-    }
-    final List<String> leftLines = leftContent.split('\n');
-    final List<String> rightLines = rightContent.split('\n');
-
-    for (final _Hunk h in merged) {
-      final int oldStart = h.oldStart;
-      final int oldEnd = h.oldStart + h.oldCount - 1;
-      final int newStart = h.newStart;
-      final int newEnd = h.newStart + h.newCount - 1;
-
-      final String leftSnippet =
-          _sliceLines(leftLines, oldStart, oldEnd).join('\n');
-      final String rightSnippet =
-          _sliceLines(rightLines, newStart, newEnd).join('\n');
-
-      chunks.add(
-        CodeChunk(
-          filePath: file,
-          oldStart: oldStart,
-          oldEnd: oldEnd,
-          newStart: newStart,
-          newEnd: newEnd,
-          leftText: leftSnippet,
-          rightText: rightSnippet,
-        ),
-      );
-    }
-  }
-
-  return chunks;
-}
-
-Future<List<CodeHunk>> loadHunkDiffs(
-  String repoPath,
-  String leftRef,
-  String rightRef, {
-  bool dartOnly = true,
-}) async {
-  final bool repoOk = await isGitRepo(repoPath);
-  if (!repoOk) {
-    return <CodeHunk>[];
-  }
-
-  final String? root = await gitRoot(repoPath);
-  final String repoRoot = root ?? repoPath;
-  final bool isSubdir = root != null && !p.equals(p.normalize(repoPath), root);
-  final String? relativeScope =
-      isSubdir ? p.relative(repoPath, from: repoRoot) : null;
-
-  final List<String> files = await listChangedFilesInScope(
-    repoRoot,
-    leftRef,
-    rightRef,
-    relativeScope,
-  );
-  final Iterable<String> filtered = dartOnly
-      ? files.where((String f) => f.endsWith('.dart'))
-      : files;
-
-  final List<CodeHunk> hunks = <CodeHunk>[];
-  for (final String file in filtered) {
-    final String? leftContent = await fileContentAtRef(repoRoot, leftRef, file);
-    final String? rightContent =
-        await fileContentAtRef(repoRoot, rightRef, file);
-    final List<String> leftLines =
-        leftContent != null ? leftContent.split('\n') : <String>[];
-    final List<String> rightLines =
-        rightContent != null ? rightContent.split('\n') : <String>[];
-
-    final List<_ParsedHunk> parsed =
-        await _parseGitHunksWithLines(repoRoot, leftRef, rightRef, file);
-    if (parsed.isEmpty) {
-      // New file or removed file: treat whole file as one hunk.
-      if (rightContent != null && leftContent == null) {
-        final int newCount = rightLines.length;
-        hunks.add(
-          CodeHunk(
-            filePath: file,
-            oldStart: 0,
-            oldCount: 0,
-            newStart: 1,
-            newCount: newCount,
-            leftText: '',
-            rightText: rightLines.join('\n'),
-            lines: List<DiffLine>.generate(
-              newCount,
-              (int i) => DiffLine(
-                leftNumber: null,
-                rightNumber: i + 1,
-                leftText: '',
-                rightText: rightLines[i],
-                status: DiffLineStatus.added,
-              ),
-            ),
-          ),
-        );
-      } else if (leftContent != null && rightContent == null) {
-        final int oldCount = leftLines.length;
-        hunks.add(
-          CodeHunk(
-            filePath: file,
-            oldStart: 1,
-            oldCount: oldCount,
-            newStart: 0,
-            newCount: 0,
-            leftText: leftLines.join('\n'),
-            rightText: '',
-            lines: List<DiffLine>.generate(
-              oldCount,
-              (int i) => DiffLine(
-                leftNumber: i + 1,
-                rightNumber: null,
-                leftText: leftLines[i],
-                rightText: '',
-                status: DiffLineStatus.removed,
-              ),
-            ),
-          ),
-        );
-      }
-      continue;
-    }
-
-    for (final _ParsedHunk h in parsed) {
-      final int oldStart = h.header.oldStart;
-      final int oldEnd = h.header.oldStart + h.header.oldCount - 1;
-      final int newStart = h.header.newStart;
-      final int newEnd = h.header.newStart + h.header.newCount - 1;
-
-      final String leftSnippet =
-          _sliceLines(leftLines, oldStart, oldEnd).join('\n');
-      final String rightSnippet =
-          _sliceLines(rightLines, newStart, newEnd).join('\n');
-
-      hunks.add(
-        CodeHunk(
-          filePath: file,
-          oldStart: oldStart,
-          oldCount: h.header.oldCount,
-          newStart: newStart,
-          newCount: h.header.newCount,
-          leftText: leftSnippet,
-          rightText: rightSnippet,
-          lines: h.lines,
-        ),
-      );
-    }
-  }
-
-  return hunks;
-}
-
-class _Hunk {
-  final int oldStart;
-  final int oldCount;
-  final int newStart;
-  final int newCount;
-
-  const _Hunk({
-    required this.oldStart,
-    required this.oldCount,
-    required this.newStart,
-    required this.newCount,
-  });
-}
-
-Future<List<_Hunk>> _parseGitHunks(
-  String repoPath,
-  String leftRef,
-  String rightRef,
-  String file,
-) async {
-  try {
-    final bool useWorktree = rightRef == kWorktreeRef;
-    final List<String> args = <String>[
-      'diff',
-      '-U3',
-      leftRef,
-      if (!useWorktree) rightRef,
-      '--',
-      file,
-    ];
-    final ProcessResult result = await _runGit(
-      repoPath,
-      args,
-      logStdoutSnippet: false,
-    );
-    if (result.exitCode != 0) {
-      return <_Hunk>[];
-    }
-    final String output = _decodeOutput(result.stdout);
-    final RegExp header =
-        RegExp(r'^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@');
-    final List<_Hunk> hunks = <_Hunk>[];
-    for (final String line in output.split('\n')) {
-      final RegExpMatch? m = header.firstMatch(line);
-      if (m != null) {
-        final int oldStart = int.parse(m.group(1)!);
-        final int oldCount = m.group(2) != null ? int.parse(m.group(2)!) : 1;
-        final int newStart = int.parse(m.group(3)!);
-        final int newCount = m.group(4) != null ? int.parse(m.group(4)!) : 1;
-        hunks.add(_Hunk(
-          oldStart: oldStart,
-          oldCount: oldCount,
-          newStart: newStart,
-          newCount: newCount,
-        ));
-      }
-    }
-    return hunks;
-  } catch (_) {
-    return <_Hunk>[];
-  }
-}
-
-class _ParsedHunk {
-  final _Hunk header;
-  final List<DiffLine> lines;
-
-  const _ParsedHunk({required this.header, required this.lines});
-}
-
-Future<List<_ParsedHunk>> _parseGitHunksWithLines(
-  String repoPath,
-  String leftRef,
-  String rightRef,
-  String file,
-) async {
-  try {
-    final bool useWorktree = rightRef == kWorktreeRef;
-    final List<String> args = <String>[
-      'diff',
-      '-U3',
-      leftRef,
-      if (!useWorktree) rightRef,
-      '--',
-      file,
-    ];
-    final ProcessResult result = await _runGit(
-      repoPath,
-      args,
-      logStdoutSnippet: false,
-    );
-    if (result.exitCode != 0) {
-      return <_ParsedHunk>[];
-    }
-    final String output = _decodeOutput(result.stdout);
-    final RegExp header =
-        RegExp(r'^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@');
-    final List<_ParsedHunk> parsed = <_ParsedHunk>[];
-    _Hunk? currentHeader;
-    List<DiffLine> currentLines = <DiffLine>[];
-    int currentOld = 0;
-    int currentNew = 0;
-
-    void flush() {
-      if (currentHeader != null) {
-        parsed.add(_ParsedHunk(header: currentHeader!, lines: currentLines));
-      }
-    }
-
-    for (final String raw in output.split('\n')) {
-      final RegExpMatch? m = header.firstMatch(raw);
-      if (m != null) {
-        flush();
-        final int oldStart = int.parse(m.group(1)!);
-        final int oldCount = m.group(2) != null ? int.parse(m.group(2)!) : 1;
-        final int newStart = int.parse(m.group(3)!);
-        final int newCount = m.group(4) != null ? int.parse(m.group(4)!) : 1;
-        currentHeader = _Hunk(
-          oldStart: oldStart,
-          oldCount: oldCount,
-          newStart: newStart,
-          newCount: newCount,
-        );
-        currentLines = <DiffLine>[];
-        currentOld = oldStart;
-        currentNew = newStart;
-        continue;
-      }
-
-      if (currentHeader == null) {
-        continue;
-      }
-
-      if (raw.startsWith('+')) {
-        final String text = raw.substring(1);
-        currentLines.add(DiffLine(
-          leftNumber: null,
-          rightNumber: currentNew,
-          leftText: '',
-          rightText: text,
-          status: DiffLineStatus.added,
-        ));
-        currentNew++;
-      } else if (raw.startsWith('-')) {
-        final String text = raw.substring(1);
-        currentLines.add(DiffLine(
-          leftNumber: currentOld,
-          rightNumber: null,
-          leftText: text,
-          rightText: '',
-          status: DiffLineStatus.removed,
-        ));
-        currentOld++;
-      } else if (raw.startsWith(' ')) {
-        final String text = raw.substring(1);
-        currentLines.add(DiffLine(
-          leftNumber: currentOld,
-          rightNumber: currentNew,
-          leftText: text,
-          rightText: text,
-          status: DiffLineStatus.context,
-        ));
-        currentOld++;
-        currentNew++;
-      } else {
-        // Skip other markers (e.g., \ No newline at end of file).
-      }
-    }
-    flush();
-    return parsed;
-  } catch (_) {
-    return <_ParsedHunk>[];
-  }
-}
-
-List<_Hunk> _mergeHunks(List<_Hunk> hunks, {int gapThreshold = 6}) {
-  if (hunks.isEmpty) return hunks;
-  final List<_Hunk> sorted = List<_Hunk>.from(hunks)
-    ..sort((a, b) => a.oldStart.compareTo(b.oldStart));
-  final List<_Hunk> merged = <_Hunk>[];
-  _Hunk current = sorted.first;
-  for (int i = 1; i < sorted.length; i++) {
-    final _Hunk next = sorted[i];
-    final int currentOldEnd = current.oldStart + current.oldCount - 1;
-    final int nextOldStart = next.oldStart;
-    final int gap = nextOldStart - currentOldEnd - 1;
-    if (gap <= gapThreshold) {
-      final int newOldStart = current.oldStart;
-      final int newOldEnd = next.oldStart + next.oldCount - 1;
-      final int newNewStart = current.newStart;
-      final int newNewEnd = next.newStart + next.newCount - 1;
-      current = _Hunk(
-        oldStart: newOldStart,
-        oldCount: (newOldEnd - newOldStart) + 1,
-        newStart: newNewStart,
-        newCount: (newNewEnd - newNewStart) + 1,
-      );
-    } else {
-      merged.add(current);
-      current = next;
-    }
-  }
-  merged.add(current);
-  return merged;
-}
-
-List<String> _sliceLines(List<String> lines, int start, int end) {
-  if (start <= 0) start = 1;
-  if (end < start) return <String>[];
-  final int startIdx = start - 1;
-  final int endIdx = end.clamp(0, lines.length);
-  return lines.sublist(startIdx, endIdx);
-}
-
-  List<DiffLine> _buildAlignedLines(
-  List<String> leftLines,
-  int leftStart,
-  List<String> rightLines,
-  int rightStart,
-) {
-  final List<DiffLine> result = <DiffLine>[];
-  final int leftLen = leftLines.length;
-  final int rightLen = rightLines.length;
-  final int maxLen = leftLen > rightLen ? leftLen : rightLen;
-  for (int i = 0; i < maxLen; i++) {
-    final String leftText = i < leftLen ? leftLines[i] : '';
-    final String rightText = i < rightLen ? rightLines[i] : '';
-    final int? leftNum = i < leftLen ? leftStart + i : null;
-    final int? rightNum = i < rightLen ? rightStart + i : null;
-    DiffLineStatus status = DiffLineStatus.context;
-    if (leftNum == null && rightNum != null) {
-      status = DiffLineStatus.added;
-    } else if (leftNum != null && rightNum == null) {
-      status = DiffLineStatus.removed;
-    } else if (leftText != rightText) {
-      status = DiffLineStatus.changed;
-    }
-    result.add(DiffLine(
-      leftNumber: leftNum,
-      rightNumber: rightNum,
-      leftText: leftText,
-      rightText: rightText,
-      status: status,
-    ));
-  }
-  return result;
-}
-
-// Logging helpers for external commands
-const bool kLogExternalCommands = true;
-const bool kLogFullStdout = false;
-
-Future<ProcessResult> _runGit(
-  String workingDirectory,
-  List<String> args, {
-  bool? logStdoutSnippet,
-}) async {
-  final String commandDescription =
-      'git ${args.join(' ')} (cwd: $workingDirectory)';
-  if (kLogExternalCommands) {
-    stdout.writeln('[chunkdiff_core] RUN $commandDescription');
-  }
-  final ProcessResult result = await Process.run(
-    'git',
-    args,
-    workingDirectory: workingDirectory,
-  );
-  if (kLogExternalCommands) {
-    stdout.writeln(
-        '[chunkdiff_core] EXIT ${result.exitCode} for $commandDescription');
-    final String out = _decodeOutput(result.stdout).trim();
-    if (out.isNotEmpty) {
-      final bool useSnippet = logStdoutSnippet ?? !kLogFullStdout;
-      if (useSnippet) {
-        stdout.writeln(
-          '[chunkdiff_core] STDOUT (${out.length} chars): ${_snippet(out)}',
-        );
-      } else {
-        stdout.writeln(
-          '[chunkdiff_core] STDOUT (${out.length} chars): $out',
-        );
-      }
-    }
-    final String err = (result.stderr as String? ?? '').trim();
-    if (err.isNotEmpty) {
-      stdout.writeln('[chunkdiff_core] STDERR: ${_snippet(err)}');
-    }
-  }
-  return result;
-}
-
-String _snippet(String text, {int max = 200}) {
-  if (text.length <= max) {
-    return text;
-  }
-  return '${text.substring(0, max)}... (truncated)';
-}
-
-String _decodeOutput(Object? data) {
-  if (data == null) return '';
-  if (data is String) return data;
-  if (data is List<int>) {
-    try {
-      return utf8.decode(data, allowMalformed: true);
-    } catch (_) {
-      return String.fromCharCodes(<int>[]);
-    }
-  }
-  return data.toString();
 }

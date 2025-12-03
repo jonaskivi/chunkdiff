@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:chunkdiff_core/chunkdiff_core.dart';
 import '../providers.dart';
 import 'files_list.dart';
+import 'chunk_diff_view.dart';
 
 class DiffView extends ConsumerStatefulWidget {
   const DiffView({super.key});
@@ -44,6 +45,8 @@ class _DiffViewState extends ConsumerState<DiffView>
         ref.watch(symbolDiffsProvider);
     final AsyncValue<List<CodeHunk>> asyncHunks =
         ref.watch(hunkDiffsProvider);
+    final AsyncValue<List<CodeChunk>> asyncChunks =
+        ref.watch(chunkDiffsProvider);
     final List<SymbolChange> changes = ref.watch(symbolChangesProvider);
     final int selectedIndex = ref.watch(selectedChangeIndexProvider);
     final String leftRef = ref.watch(leftRefProvider);
@@ -51,10 +54,13 @@ class _DiffViewState extends ConsumerState<DiffView>
     final SymbolChange? selectedChange = ref.watch(selectedChangeProvider);
     final bool hasHunkData =
         asyncHunks.hasValue && (asyncHunks.value?.isNotEmpty ?? false);
-    final bool isLoading = (asyncDiffs.isLoading || asyncHunks.isLoading) &&
-        !hasHunkData &&
-        changes.isEmpty;
-    final bool hasChanges = (changes.isNotEmpty && !isLoading) || hasHunkData;
+    final bool hasChunkData =
+        asyncChunks.hasValue && (asyncChunks.value?.isNotEmpty ?? false);
+    final bool isLoading =
+        (asyncDiffs.isLoading || asyncHunks.isLoading || asyncChunks.isLoading) &&
+            (!hasHunkData && !hasChunkData && changes.isEmpty);
+    final bool hasChanges =
+        (changes.isNotEmpty && !isLoading) || hasHunkData || hasChunkData;
     final ChangesTab activeTab = ref.watch(changesTabProvider);
     final int selectedChunkIndex = ref.watch(selectedChunkIndexProvider);
 
@@ -156,7 +162,20 @@ class _DiffViewState extends ConsumerState<DiffView>
                                     },
                                     focusNode: _hunksFocus,
                                   )
-                                : const _ChunksPlaceholder())
+                                : _ChunksList(
+                                    asyncChunks: asyncChunks,
+                                    selectedIndex: selectedChunkIndex,
+                                    onSelect: (int idx) {
+                                      ref
+                                          .read(selectedChunkIndexProvider
+                                              .notifier)
+                                          .state = idx;
+                                      ref
+                                          .read(settingsControllerProvider
+                                              .notifier)
+                                          .setSelectedChunkIndex(idx);
+                                    },
+                                  ))
                         : Center(
                             child: Text(
                               'No changes for $leftRef → $rightRef',
@@ -236,12 +255,17 @@ class _DiffViewState extends ConsumerState<DiffView>
                           ),
                         ],
                       )
-                    : _HunkDiffView(
-                        asyncHunks: asyncHunks,
-                        selectedIndex: selectedChunkIndex,
-                        selectedFileChange: selectedChange,
-                        activeTab: activeTab,
-                      ),
+                    : activeTab == ChangesTab.hunks
+                        ? _HunkDiffView(
+                            asyncHunks: asyncHunks,
+                            selectedIndex: selectedChunkIndex,
+                            selectedFileChange: selectedChange,
+                            activeTab: activeTab,
+                          )
+                        : ChunkDiffView(
+                            asyncChunks: asyncChunks,
+                            selectedIndex: selectedChunkIndex,
+                          ),
               ),
             ],
           ),
@@ -518,15 +542,7 @@ class _ChunksPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        'Chunks view coming soon.',
-        style: Theme.of(context)
-            .textTheme
-            .bodyMedium
-            ?.copyWith(color: Colors.grey[400]),
-      ),
-    );
+    return const SizedBox.shrink();
   }
 }
 
@@ -748,7 +764,61 @@ class _HunkDiffView extends StatelessWidget {
 
     return const _ChunksPlaceholder();
   }
+}
 
+class _ChunksList extends StatelessWidget {
+  const _ChunksList({
+    required this.asyncChunks,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  final AsyncValue<List<CodeChunk>> asyncChunks;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<CodeChunk> chunks = asyncChunks.value ?? const <CodeChunk>[];
+    if (chunks.isEmpty) {
+      return Center(
+        child: Text(
+          'No diff content to display.',
+          style: Theme.of(context)
+              .textTheme
+              .bodyMedium
+              ?.copyWith(color: Colors.grey[400]),
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: chunks.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (BuildContext context, int index) {
+        final CodeChunk chunk = chunks[index];
+        final bool selected = index == selectedIndex;
+        return ListTile(
+          dense: true,
+          selected: selected,
+          title: Text(chunk.name),
+          subtitle: Text(
+            '${chunk.filePath} | lines ${chunk.oldStart}-${chunk.oldEnd}',
+          ),
+          trailing: chunk.ignored
+              ? Chip(
+                  label: const Text('Ignored'),
+                  backgroundColor: Colors.grey.shade800,
+                  labelStyle: const TextStyle(color: Colors.white70),
+                  visualDensity: VisualDensity.compact,
+                )
+              : null,
+          onTap: () => onSelect(index),
+        );
+      },
+    );
+  }
 }
 
 class _SkeletonListItem extends StatelessWidget {
