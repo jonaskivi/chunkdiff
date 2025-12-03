@@ -167,7 +167,7 @@ class _RepoToolbarState extends ConsumerState<RepoToolbar> {
         OutlinedButton.icon(
           onPressed: () => ref.invalidate(repoValidationProvider),
           icon: const Icon(Icons.refresh),
-          label: const Text('Re-validate'),
+          label: const Text('Refresh'),
         ),
       ],
     );

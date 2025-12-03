@@ -30,6 +30,39 @@ final Provider<String> helloFromCoreProvider =
 final StateProvider<String> codeContentProvider =
     StateProvider<String>((Ref ref) => kSampleDartCode);
 
+const String kSampleLeftDiff = '''
+class ChunkDiffExample {
+  String greet(String name) {
+    return 'Hello, \$name from v1';
+  }
+}
+
+void main() {
+  final ChunkDiffExample example = ChunkDiffExample();
+  print(example.greet('Developer'));
+}
+''';
+
+const String kSampleRightDiff = '''
+class ChunkDiffExample {
+  String greet(String name, {bool excited = false}) {
+    final String base = 'Hello, \$name from v2';
+    return excited ? '\$base!' : base;
+  }
+}
+
+void main() {
+  final ChunkDiffExample example = ChunkDiffExample();
+  print(example.greet('Developer', excited: true));
+}
+''';
+
+final StateProvider<String> leftDiffCodeProvider =
+    StateProvider<String>((Ref ref) => kSampleLeftDiff);
+
+final StateProvider<String> rightDiffCodeProvider =
+    StateProvider<String>((Ref ref) => kSampleRightDiff);
+
 final Provider<SettingsRepository> settingsRepositoryProvider =
     Provider<SettingsRepository>((Ref ref) => SettingsRepository());
 
