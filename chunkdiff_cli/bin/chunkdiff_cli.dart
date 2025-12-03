@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:chunkdiff_core/chunkdiff_core.dart';
 
-void main(List<String> arguments) {
+Future<void> main(List<String> arguments) async {
   final Map<String, String> args = _parseArgs(arguments);
   final String gitFolder = args['git-folder'] ?? '(not provided)';
   final String leftRef = args['left'] ?? 'HEAD~1';
@@ -15,8 +15,22 @@ void main(List<String> arguments) {
   stdout.writeln('');
   stdout.writeln('Hello from core: ${helloFromCore()}');
   stdout.writeln('');
-  stdout.writeln('Dummy symbol changes:');
-  for (final SymbolDiff diff in dummySymbolDiffs()) {
+  stdout.writeln('Symbol changes:');
+  final bool hasRepo = gitFolder != '(not provided)';
+  final List<SymbolDiff> diffs = <SymbolDiff>[];
+  if (hasRepo) {
+    try {
+      diffs.addAll(await loadSymbolDiffs(gitFolder, leftRef, rightRef));
+    } catch (e) {
+      stdout.writeln('  (failed to load git diffs: $e)');
+    }
+  }
+  if (diffs.isEmpty) {
+    diffs.addAll(dummySymbolDiffs());
+    stdout.writeln('  (using dummy data)');
+  }
+
+  for (final SymbolDiff diff in diffs) {
     final SymbolChange change = diff.change;
     stdout.writeln(
       '- ${change.name} (${change.kind.name}) '

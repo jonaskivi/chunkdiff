@@ -175,3 +175,86 @@ Future<List<String>> listGitRefs(
     return <String>[];
   }
 }
+
+Future<List<String>> listChangedFiles(
+  String path,
+  String leftRef,
+  String rightRef,
+) async {
+  try {
+    final ProcessResult result = await Process.run(
+      'git',
+      <String>['diff', '--name-only', leftRef, rightRef],
+      workingDirectory: path,
+    );
+    if (result.exitCode != 0) {
+      return <String>[];
+    }
+    final String stdout = (result.stdout as String?) ?? '';
+    return stdout
+        .split('\n')
+        .map((String line) => line.trim())
+        .where((String line) => line.isNotEmpty)
+        .toList();
+  } catch (_) {
+    return <String>[];
+  }
+}
+
+Future<String?> fileContentAtRef(
+  String path,
+  String ref,
+  String filePath,
+) async {
+  try {
+    final ProcessResult result = await Process.run(
+      'git',
+      <String>['show', '$ref:$filePath'],
+      workingDirectory: path,
+    );
+    if (result.exitCode != 0) {
+      return null;
+    }
+    return (result.stdout as String?) ?? '';
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<List<SymbolDiff>> loadSymbolDiffs(
+  String repoPath,
+  String leftRef,
+  String rightRef, {
+  bool dartOnly = true,
+}) async {
+  final bool repoOk = await isGitRepo(repoPath);
+  if (!repoOk) {
+    return dummySymbolDiffs();
+  }
+
+  final List<String> files =
+      await listChangedFiles(repoPath, leftRef, rightRef);
+  final Iterable<String> filtered = dartOnly
+      ? files.where((String f) => f.endsWith('.dart'))
+      : files;
+
+  final List<SymbolDiff> diffs = <SymbolDiff>[];
+  for (final String file in filtered) {
+    final String? left = await fileContentAtRef(repoPath, leftRef, file);
+    final String? right = await fileContentAtRef(repoPath, rightRef, file);
+    diffs.add(
+      SymbolDiff(
+        change: SymbolChange(
+          name: file,
+          kind: SymbolKind.other,
+          beforePath: file,
+          afterPath: file,
+        ),
+        leftSnippet: left ?? '',
+        rightSnippet: right ?? '',
+      ),
+    );
+  }
+
+  return diffs.isNotEmpty ? diffs : dummySymbolDiffs();
+}

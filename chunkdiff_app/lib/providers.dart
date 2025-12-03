@@ -5,6 +5,8 @@ import 'models/app_settings.dart';
 import 'services/git_service.dart';
 import 'services/settings_repository.dart';
 
+const bool kForceMockData = false;
+
 const String kSampleDartCode = '''
 import 'dart:math';
 
@@ -63,6 +65,12 @@ final FutureProvider<GitValidationResult> repoValidationProvider =
   final AppSettings settings =
       await ref.watch(settingsControllerProvider.future);
   final String? path = settings.gitFolder;
+  if (kForceMockData) {
+    return const GitValidationResult(
+      isRepo: false,
+      message: 'Mock mode (git disabled)',
+    );
+  }
   if (path == null || path.isEmpty) {
     return const GitValidationResult(
       isRepo: false,
@@ -72,9 +80,6 @@ final FutureProvider<GitValidationResult> repoValidationProvider =
   final GitService git = ref.read(gitServiceProvider);
   return git.validateRepo(path);
 });
-
-final Provider<List<SymbolChange>> symbolChangesProvider =
-    Provider<List<SymbolChange>>((Ref ref) => dummySymbolChanges());
 
 final StateProvider<int> selectedChangeIndexProvider =
     StateProvider<int>((Ref ref) => 0);
@@ -93,6 +98,9 @@ const List<String> kStubRefs = <String>['HEAD', 'HEAD~1', 'main'];
 
 final FutureProvider<List<String>> refOptionsProvider =
     FutureProvider<List<String>>((Ref ref) async {
+  if (kForceMockData) {
+    return kStubRefs;
+  }
   final AppSettings settings =
       await ref.watch(settingsControllerProvider.future);
   final String? path = settings.gitFolder;
@@ -118,6 +126,9 @@ final StateProvider<String> rightRefProvider =
 
 final FutureProvider<bool> gitAccessProvider =
     FutureProvider<bool>((Ref ref) async {
+  if (kForceMockData) {
+    return false;
+  }
   final AppSettings settings =
       await ref.watch(settingsControllerProvider.future);
   final String? path = settings.gitFolder;
@@ -136,22 +147,53 @@ final FutureProvider<bool> gitAccessProvider =
   }
 });
 
-final Provider<List<SymbolDiff>> symbolDiffsProvider =
-    Provider<List<SymbolDiff>>((Ref ref) => dummySymbolDiffs());
+final FutureProvider<List<SymbolDiff>> symbolDiffsProvider =
+    FutureProvider<List<SymbolDiff>>((Ref ref) async {
+  if (kForceMockData) {
+    return dummySymbolDiffs();
+  }
+  final AppSettings settings =
+      await ref.watch(settingsControllerProvider.future);
+  final String? repo = settings.gitFolder;
+  final String left = ref.watch(leftRefProvider);
+  final String right = ref.watch(rightRefProvider);
+  if (repo == null || repo.isEmpty) {
+    return dummySymbolDiffs();
+  }
+  try {
+    final List<SymbolDiff> diffs = await loadSymbolDiffs(repo, left, right);
+    return diffs.isNotEmpty ? diffs : dummySymbolDiffs();
+  } catch (_) {
+    return dummySymbolDiffs();
+  }
+});
+
+final Provider<List<SymbolChange>> symbolChangesProvider =
+    Provider<List<SymbolChange>>((Ref ref) {
+  final AsyncValue<List<SymbolDiff>> diffs = ref.watch(symbolDiffsProvider);
+  return diffs.maybeWhen(
+    data: (List<SymbolDiff> d) => d.map((SymbolDiff s) => s.change).toList(),
+    orElse: () => dummySymbolDiffs().map((SymbolDiff s) => s.change).toList(),
+  );
+});
 
 final Provider<SymbolDiff?> selectedDiffProvider =
     Provider<SymbolDiff?>((Ref ref) {
-  final SymbolChange? change = ref.watch(selectedChangeProvider);
-  if (change == null) {
-    return null;
-  }
-  final List<SymbolDiff> diffs = ref.watch(symbolDiffsProvider);
-  return diffs.firstWhere(
-    (SymbolDiff d) => d.change.name == change.name,
-    orElse: () => SymbolDiff(
-      change: change,
-      leftSnippet: kSampleDartCode,
-      rightSnippet: kSampleDartCode,
-    ),
+  final AsyncValue<List<SymbolDiff>> asyncDiffs = ref.watch(symbolDiffsProvider);
+  final int index = ref.watch(selectedChangeIndexProvider);
+  return asyncDiffs.maybeWhen(
+    data: (List<SymbolDiff> diffs) {
+      if (index >= 0 && index < diffs.length) {
+        return diffs[index];
+      }
+      return null;
+    },
+    orElse: () {
+      final List<SymbolDiff> fallback = dummySymbolDiffs();
+      if (index >= 0 && index < fallback.length) {
+        return fallback[index];
+      }
+      return null;
+    },
   );
 });
