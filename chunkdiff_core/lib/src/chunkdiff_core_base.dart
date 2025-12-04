@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
+import 'log.dart';
 
 enum SymbolKind { function, method, classType, enumType, other }
 
@@ -500,8 +501,9 @@ Future<List<CodeHunk>> loadHunkDiffs(
 Future<List<CodeChunk>> loadChunkDiffs(
   String repo,
   String leftRef,
-  String rightRef,
-) async {
+  String rightRef, {
+  String? debugFilter,
+}) async {
   final List<CodeHunk> hunks = await loadHunkDiffs(repo, leftRef, rightRef);
   final Map<String, String?> leftCache = <String, String?>{};
   final Map<String, String?> rightCache = <String, String?>{};
@@ -615,6 +617,7 @@ Future<List<CodeChunk>> loadChunkDiffs(
         parentName: parent.name,
         hunks: hunks,
         rightCache: rightCache,
+        debugFilter: debugFilter,
       );
     }
 
@@ -1025,11 +1028,29 @@ Future<_ParentMatch?> _findMovedParent({
   required String parentName,
   required List<CodeHunk> hunks,
   required Map<String, String?> rightCache,
+  String? debugFilter,
 }) async {
   final String coreName = parentName.replaceFirst(RegExp(r'^_'), '');
   final RegExp nameRe = RegExp(r'\b_?${RegExp.escape(coreName)}\b');
   final Set<String> candidates =
       hunks.map((CodeHunk h) => h.filePath).toSet();
+
+  final bool filterMatches = debugFilter != null &&
+      debugFilter.isNotEmpty &&
+      coreName.toLowerCase() == debugFilter.toLowerCase();
+
+  if (debugFilter != null &&
+      debugFilter.isNotEmpty &&
+      !filterMatches) {
+    // Only log if filter matches; still return null quickly.
+    return null;
+  }
+  logDebug('[move] Searching for "$coreName" in ${candidates.length} files...');
+  if (filterMatches && candidates.isNotEmpty) {
+    for (final String path in candidates) {
+      logDebug('[move] '+path);
+    }
+  }
 
   for (final String path in candidates) {
     String? text = rightCache[path];
@@ -1049,6 +1070,10 @@ Future<_ParentMatch?> _findMovedParent({
       }
       final List<String> rightLines =
           lines.sublist(info.startLine - 1, info.endLine);
+      logDebug(
+        '[move] Found in $path lines ${info.startLine}-${info.endLine}',
+
+      );
       return _ParentMatch(
         filePath: path,
         info: info,
@@ -1058,6 +1083,7 @@ Future<_ParentMatch?> _findMovedParent({
     }
   }
 
+  logDebug('[move] No match found for "' + coreName + '".');
   return null;
 }
 

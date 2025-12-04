@@ -11,6 +11,7 @@ class FilesList extends StatelessWidget {
     this.focusNode,
     this.onArrowUp,
     this.onArrowDown,
+    this.debugSearch = '',
   });
 
   final List<SymbolChange> changes;
@@ -19,6 +20,7 @@ class FilesList extends StatelessWidget {
   final FocusNode? focusNode;
   final VoidCallback? onArrowUp;
   final VoidCallback? onArrowDown;
+  final String debugSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +56,9 @@ class FilesList extends StatelessWidget {
         itemBuilder: (BuildContext _, int index) {
           final SymbolChange change = changes[index];
           final bool selected = index == selectedIndex;
+          final bool debugHit = debugSearch.isNotEmpty &&
+              (change.name.toLowerCase().contains(debugSearch.toLowerCase()) ||
+                  (change.beforePath ?? '').toLowerCase().contains(debugSearch.toLowerCase()));
           return ListTile(
             dense: true,
             selected: selected,
@@ -69,6 +74,12 @@ class FilesList extends StatelessWidget {
                 color: Colors.grey[700],
               ),
             ),
+            trailing: debugHit
+                ? Chip(
+                    label: const Text('Debug'),
+                    visualDensity: VisualDensity.compact,
+                  )
+                : null,
             onTap: () {
               focusNode?.requestFocus();
               onSelect(index);

@@ -1,6 +1,8 @@
+import 'package:chunkdiff_app/models/app_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 
 import 'package:chunkdiff_core/chunkdiff_core.dart';
 import '../providers.dart';
@@ -64,6 +66,14 @@ class _DiffViewState extends ConsumerState<DiffView>
         (changes.isNotEmpty && !isLoading) || hasHunkData || hasChunkData;
     final ChangesTab activeTab = ref.watch(changesTabProvider);
     final int selectedChunkIndex = ref.watch(selectedChunkIndexProvider);
+    final AppSettings? settings =
+        ref.watch(settingsControllerProvider).maybeWhen(
+              data: (AppSettings s) => s,
+              orElse: () => null,
+            );
+    final bool showDebug = kDebugMode && (settings?.showDebugInfo ?? false);
+    final String debugSearch = settings?.debugSearch ?? '';
+    final List<String> debugLog = ref.watch(debugLogProvider);
 
     return Row(
       children: [
@@ -116,6 +126,7 @@ class _DiffViewState extends ConsumerState<DiffView>
                                   }
                                 },
                                 focusNode: _filesFocus,
+                                debugSearch: debugSearch,
                               )
                             : activeTab == ChangesTab.hunks
                                 ? _HunkList(
@@ -146,23 +157,24 @@ class _DiffViewState extends ConsumerState<DiffView>
                                       }
                                     },
                                     onArrowDown: () {
-                                      final int maxIndex =
-                                          (asyncHunks.value?.length ?? 0) - 1;
-                                      if (selectedChunkIndex < maxIndex) {
-                                        ref
-                                            .read(selectedChunkIndexProvider
-                                                .notifier)
-                                            .state = selectedChunkIndex + 1;
-                                        ref
-                                            .read(
-                                                settingsControllerProvider
-                                                    .notifier)
-                                            .setSelectedChunkIndex(
-                                                selectedChunkIndex + 1);
-                                      }
-                                    },
-                                    focusNode: _hunksFocus,
-                                  )
+                                    final int maxIndex =
+                                        (asyncHunks.value?.length ?? 0) - 1;
+                                    if (selectedChunkIndex < maxIndex) {
+                                      ref
+                                          .read(selectedChunkIndexProvider
+                                              .notifier)
+                                          .state = selectedChunkIndex + 1;
+                                      ref
+                                          .read(
+                                              settingsControllerProvider
+                                                  .notifier)
+                                          .setSelectedChunkIndex(
+                                              selectedChunkIndex + 1);
+                                    }
+                                  },
+                                  focusNode: _hunksFocus,
+                                  debugSearch: debugSearch,
+                                )
                                 : _ChunksList(
                                     asyncChunks: asyncChunks,
                                     selectedIndex: selectedChunkIndex,
@@ -176,6 +188,7 @@ class _DiffViewState extends ConsumerState<DiffView>
                                               .notifier)
                                           .setSelectedChunkIndex(idx);
                                     },
+                                    debugSearch: debugSearch,
                                   ))
                         : Center(
                             child: Text(
@@ -239,6 +252,37 @@ class _DiffViewState extends ConsumerState<DiffView>
                 },
               ),
               const SizedBox(height: 8),
+              if (kDebugMode)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () {
+                      final bool next = !(settings?.showDebugInfo ?? false);
+                      ref
+                          .read(settingsControllerProvider.notifier)
+                          .setShowDebugInfo(next);
+                    },
+                    icon: const Icon(Icons.bug_report, size: 18),
+                    label: Text(
+                      (settings?.showDebugInfo ?? false)
+                          ? 'Hide debug info'
+                          : 'Show debug info',
+                    ),
+                  ),
+                ),
+              if (showDebug) ...[
+                _DebugPanel(
+                  initialText: debugSearch,
+                  onSubmit: (String value) async {
+                    await ref
+                        .read(settingsControllerProvider.notifier)
+                        .setDebugSearch(value);
+                    ref.invalidate(chunkDiffsProvider);
+                  },
+                  logLines: debugLog,
+                ),
+                const SizedBox(height: 8),
+              ],
               Expanded(
                 child: isLoading
                     ? Row(
@@ -429,6 +473,7 @@ class _HunkList extends StatelessWidget {
     this.focusNode,
     this.onArrowUp,
     this.onArrowDown,
+    this.debugSearch = '',
   });
 
   final AsyncValue<List<CodeHunk>> asyncHunks;
@@ -437,6 +482,7 @@ class _HunkList extends StatelessWidget {
   final FocusNode? focusNode;
   final VoidCallback? onArrowUp;
   final VoidCallback? onArrowDown;
+  final String debugSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -477,6 +523,12 @@ class _HunkList extends StatelessWidget {
         itemBuilder: (BuildContext context, int index) {
           final CodeHunk chunk = chunks[index];
           final bool selected = index == selectedIndex;
+          final String needle = debugSearch.toLowerCase();
+          final bool debugHit = needle.isNotEmpty &&
+              (chunk.filePath.toLowerCase().contains(needle) ||
+                  chunk.lines.any((DiffLine l) =>
+                      l.leftText.toLowerCase().contains(needle) ||
+                      l.rightText.toLowerCase().contains(needle)));
           return ListTile(
             dense: true,
             selected: selected,
@@ -485,6 +537,12 @@ class _HunkList extends StatelessWidget {
               'Old ${chunk.oldStart}-${chunk.oldStart + chunk.oldCount - 1} → '
               'New ${chunk.newStart}-${chunk.newStart + chunk.newCount - 1}',
             ),
+            trailing: debugHit
+                ? Chip(
+                    label: const Text('Debug'),
+                    visualDensity: VisualDensity.compact,
+                  )
+                : null,
             onTap: () {
               focusNode?.requestFocus();
               onSelect(index);
@@ -588,11 +646,13 @@ class _ChunksList extends StatelessWidget {
     required this.asyncChunks,
     required this.selectedIndex,
     required this.onSelect,
+    this.debugSearch = '',
   });
 
   final AsyncValue<List<CodeChunk>> asyncChunks;
   final int selectedIndex;
   final ValueChanged<int> onSelect;
+  final String debugSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -616,6 +676,11 @@ class _ChunksList extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final CodeChunk chunk = chunks[index];
         final bool selected = index == selectedIndex;
+        final String needle = debugSearch.toLowerCase();
+        final bool debugHit = needle.isNotEmpty &&
+            (chunk.name.toLowerCase().contains(needle) ||
+                chunk.filePath.toLowerCase().contains(needle) ||
+                chunk.rightFilePath.toLowerCase().contains(needle));
         return ListTile(
           dense: true,
           selected: selected,
@@ -630,7 +695,12 @@ class _ChunksList extends StatelessWidget {
                   labelStyle: const TextStyle(color: Colors.white70),
                   visualDensity: VisualDensity.compact,
                 )
-              : null,
+              : debugHit
+                  ? Chip(
+                      label: const Text('Debug'),
+                      visualDensity: VisualDensity.compact,
+                    )
+                  : null,
           onTap: () => onSelect(index),
         );
       },
@@ -707,6 +777,87 @@ class SkeletonBox extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _DebugPanel extends StatefulWidget {
+  const _DebugPanel({
+    required this.initialText,
+    required this.onSubmit,
+    required this.logLines,
+  });
+
+  final String initialText;
+  final ValueChanged<String> onSubmit;
+  final List<String> logLines;
+
+  @override
+  State<_DebugPanel> createState() => _DebugPanelState();
+}
+
+class _DebugPanelState extends State<_DebugPanel> {
+  late TextEditingController _controller;
+  late ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialText);
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade900,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            decoration: const InputDecoration(
+              labelText: 'Debug search string',
+              isDense: true,
+            ),
+            onSubmitted: widget.onSubmit,
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 240,
+            child: Scrollbar(
+              thumbVisibility: true,
+              controller: _scrollController,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                controller: _scrollController,
+                child: SelectableText(
+                  widget.logLines.isEmpty
+                      ? '(no debug log yet)'
+                      : widget.logLines.join('\n'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[300],
+                    fontFamily: 'SourceCodePro',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -61,6 +61,22 @@ class SettingsController extends AutoDisposeAsyncNotifier<AppSettings> {
     await repo.save(next);
     state = AsyncData(next);
   }
+
+  Future<void> setShowDebugInfo(bool value) async {
+    final SettingsRepository repo = ref.read(settingsRepositoryProvider);
+    final AppSettings next =
+        (state.value ?? const AppSettings()).copyWith(showDebugInfo: value);
+    await repo.save(next);
+    state = AsyncData(next);
+  }
+
+  Future<void> setDebugSearch(String value) async {
+    final SettingsRepository repo = ref.read(settingsRepositoryProvider);
+    final AppSettings next =
+        (state.value ?? const AppSettings()).copyWith(debugSearch: value);
+    await repo.save(next);
+    state = AsyncData(next);
+  }
 }
 
 final AutoDisposeAsyncNotifierProvider<SettingsController, AppSettings>
@@ -192,11 +208,27 @@ final FutureProvider<List<CodeChunk>> chunkDiffsProvider =
   final String? repo = settings.gitFolder;
   final String left = ref.watch(leftRefProvider);
   final String right = ref.watch(rightRefProvider);
+  final String debugSearch = settings.debugSearch;
+  final bool showDebug = settings.showDebugInfo;
   if (repo == null || repo.isEmpty) {
     return <CodeChunk>[];
   }
   try {
-    return await loadChunkDiffs(repo, left, right);
+    if (showDebug) {
+      clearDebugLog();
+    }
+    final List<CodeChunk> chunks = await loadChunkDiffs(
+      repo,
+      left,
+      right,
+      debugFilter: showDebug && debugSearch.isNotEmpty ? debugSearch : null,
+    );
+    if (showDebug) {
+      ref.read(debugLogProvider.notifier).state = readDebugLog();
+    } else {
+      ref.read(debugLogProvider.notifier).state = <String>[];
+    }
+    return chunks;
   } catch (_) {
     return <CodeChunk>[];
   }
@@ -269,3 +301,6 @@ final StateProvider<int> selectedChunkIndexProvider =
     orElse: () => 0,
   );
 });
+
+final StateProvider<List<String>> debugLogProvider =
+    StateProvider<List<String>>((Ref ref) => <String>[]);
