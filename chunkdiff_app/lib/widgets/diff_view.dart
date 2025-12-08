@@ -713,7 +713,32 @@ class _ChunksList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final List<CodeChunk> chunks = asyncChunks.value ?? const <CodeChunk>[];
+    final List<CodeChunk> rawChunks = asyncChunks.value ?? const <CodeChunk>[];
+    final List<CodeChunk> chunks = List<CodeChunk>.from(rawChunks);
+    int _categoryRank(ChunkCategory cat) {
+      switch (cat) {
+        case ChunkCategory.moved:
+          return 0;
+        case ChunkCategory.changed:
+          return 1;
+        case ChunkCategory.usageOrUnresolved:
+          return 2;
+        case ChunkCategory.punctuationOnly:
+          return 3;
+        case ChunkCategory.unreadable:
+          return 4;
+        case ChunkCategory.importOnly:
+          return 5; // always last
+      }
+    }
+
+    chunks.sort((CodeChunk a, CodeChunk b) {
+      final int ra = _categoryRank(a.category);
+      final int rb = _categoryRank(b.category);
+      if (ra != rb) return ra.compareTo(rb);
+      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    });
+
     if (chunks.isEmpty) {
       return Center(
         child: Text(
@@ -729,7 +754,23 @@ class _ChunksList extends StatelessWidget {
     return ListView.separated(
       padding: EdgeInsets.zero,
       itemCount: chunks.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, int index) {
+        if (index >= chunks.length - 1) {
+          return const SizedBox(height: 12);
+        }
+        final int currentRank = _categoryRank(chunks[index].category);
+        final int nextRank = _categoryRank(chunks[index + 1].category);
+        if (currentRank != nextRank) {
+          return Column(
+            children: <Widget>[
+              const SizedBox(height: 8),
+              Divider(color: Colors.grey.shade700, height: 1),
+              const SizedBox(height: 8),
+            ],
+          );
+        }
+        return const SizedBox(height: 12);
+      },
       itemBuilder: (BuildContext context, int index) {
         final CodeChunk chunk = chunks[index];
         final bool selected = index == selectedIndex;
