@@ -102,22 +102,6 @@ class _RepoToolbarState extends ConsumerState<RepoToolbar> {
     final String leftRef = ref.watch(leftRefProvider);
     final String rightRef = ref.watch(rightRefProvider);
 
-    final String repoPath = settings.maybeWhen(
-      data: (AppSettings data) => data.gitFolder ?? 'No Git folder selected',
-      orElse: () => 'Loading settings...',
-    );
-
-    final String statusText = validation.maybeWhen(
-      data: (GitValidationResult result) => result.message ?? '',
-      loading: () => 'Validating Git folder...',
-      orElse: () => 'No Git folder selected',
-    );
-
-    final bool isRepo = validation.maybeWhen(
-      data: (GitValidationResult result) => result.isRepo,
-      orElse: () => false,
-    );
-
     return Row(
       children: [
         ElevatedButton.icon(

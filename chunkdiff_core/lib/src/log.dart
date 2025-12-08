@@ -8,6 +8,7 @@ const int _kMaxLogEntriesDebug = 10000;
 const int _kMaxLogEntriesRelease = 1000;
 const bool _isDebug = !bool.fromEnvironment('dart.vm.product');
 final List<String> _debugLog = <String>[];
+bool _verboseEnabled = _isDebug;
 
 void logDebug(String message) {
   // Always print for visibility in console.
@@ -30,4 +31,15 @@ List<String> readDebugLog({int? maxEntries}) {
 
 void clearDebugLog() {
   _debugLog.clear();
+}
+
+void setVerboseLogging(bool enabled) {
+  _verboseEnabled = enabled;
+}
+
+void logVerbose(String message) {
+  if (!_verboseEnabled) {
+    return;
+  }
+  logDebug(message);
 }

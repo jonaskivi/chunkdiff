@@ -504,7 +504,9 @@ Future<List<CodeChunk>> loadChunkDiffs(
   String rightRef, {
   String? debugFilter,
 }) async {
+  logVerbose('[chunks] Start loadChunkDiffs for $repo ($leftRef -> $rightRef)');
   final List<CodeHunk> hunks = await loadHunkDiffs(repo, leftRef, rightRef);
+  logVerbose('[chunks] Parsed ${hunks.length} hunks');
   final Map<String, String?> leftCache = <String, String?>{};
   final Map<String, String?> rightCache = <String, String?>{};
 
@@ -645,6 +647,7 @@ Future<List<CodeChunk>> loadChunkDiffs(
       lines: chunkLines,
     ));
   }
+  logVerbose('[chunks] Built ${chunks.length} chunks');
   return chunks;
 }
 
@@ -1031,7 +1034,11 @@ Future<_ParentMatch?> _findMovedParent({
   String? debugFilter,
 }) async {
   final String coreName = parentName.replaceFirst(RegExp(r'^_'), '');
-  final RegExp nameRe = RegExp(r'\b_?${RegExp.escape(coreName)}\b');
+  final RegExp nameRe = RegExp(
+    r'\b_?' + RegExp.escape(coreName) + r'\b',
+    caseSensitive: false,
+  );
+  final String coreNameLower = coreName.toLowerCase();
   final Set<String> candidates =
       hunks.map((CodeHunk h) => h.filePath).toSet();
 
@@ -1042,35 +1049,49 @@ Future<_ParentMatch?> _findMovedParent({
   if (debugFilter != null &&
       debugFilter.isNotEmpty &&
       !filterMatches) {
+    logVerbose('[move] Skipping "$coreName" because filter="$debugFilter"');
     // Only log if filter matches; still return null quickly.
     return null;
   }
-  logDebug('[move] Searching for "$coreName" in ${candidates.length} files...');
+  logVerbose('[move] Searching for "$coreName" in ${candidates.length} files...');
   if (filterMatches && candidates.isNotEmpty) {
     for (final String path in candidates) {
-      logDebug('[move] '+path);
+      logVerbose('[move] $path');
     }
   }
 
   for (final String path in candidates) {
+    logVerbose('[move] Inspecting $path');
     String? text = rightCache[path];
     text ??= await _readFileForRef(repo, rightRef, path);
     if (text == null || text.isEmpty) {
+      logVerbose('[move] Skipping $path (empty or unreadable)');
       continue;
     }
     rightCache[path] = text;
     final List<String> lines = text.split('\n');
+    logVerbose('[move] $path has ${lines.length} lines to scan');
     for (int i = 0; i < lines.length; i++) {
-      if (!nameRe.hasMatch(lines[i])) {
+      final String line = lines[i];
+      // Extra diagnostics: note when the substring exists but regex fails.
+      final bool containsLower =
+          line.toLowerCase().contains(coreNameLower);
+      final bool regexMatch = nameRe.hasMatch(line);
+      if (containsLower && !regexMatch) {
+        logVerbose('[move] Substring hit but regex miss at $path:${i + 1} -> "${line.trim()}"');
+      }
+      if (!regexMatch) {
         continue;
       }
+      logVerbose('[move] Potential match at $path:${i + 1} -> "${line.trim()}"');
       final _ParentInfo? info = _findParent(lines, i + 1);
       if (info == null) {
+        logVerbose('[move] Parent not found at $path:${i + 1}');
         continue;
       }
       final List<String> rightLines =
           lines.sublist(info.startLine - 1, info.endLine);
-      logDebug(
+      logVerbose(
         '[move] Found in $path lines ${info.startLine}-${info.endLine}',
 
       );
@@ -1083,7 +1104,7 @@ Future<_ParentMatch?> _findMovedParent({
     }
   }
 
-  logDebug('[move] No match found for "' + coreName + '".');
+  logVerbose('[move] No match found for "' + coreName + '".');
   return null;
 }
 

@@ -217,6 +217,7 @@ final FutureProvider<List<CodeChunk>> chunkDiffsProvider =
     if (showDebug) {
       clearDebugLog();
     }
+    setVerboseLogging(settings.verboseDebugLog);
     final List<CodeChunk> chunks = await loadChunkDiffs(
       repo,
       left,
@@ -229,7 +230,13 @@ final FutureProvider<List<CodeChunk>> chunkDiffsProvider =
       ref.read(debugLogProvider.notifier).state = <String>[];
     }
     return chunks;
-  } catch (_) {
+  } catch (err, stack) {
+    // ignore: avoid_print
+    print('chunkDiffsProvider error: $err\n$stack');
+    logDebug('chunkDiffsProvider error: $err');
+    if (showDebug) {
+      ref.read(debugLogProvider.notifier).state = readDebugLog();
+    }
     return <CodeChunk>[];
   }
 });
