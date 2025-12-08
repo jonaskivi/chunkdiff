@@ -449,29 +449,78 @@ Future<List<SymbolDiff>> loadSymbolDiffs(
   String leftRef,
   String rightRef,
 ) async {
-  final List<String> args = <String>['diff', '--name-only', '--no-color'];
+  final Map<String, SymbolChange> changes = <String, SymbolChange>{};
+
+  final List<String> statusArgs = <String>['diff', '--name-status', '--no-color'];
   if (rightRef == kWorktreeRef) {
-    args.add(leftRef);
+    statusArgs.add(leftRef);
   } else {
-    args.addAll(<String>[leftRef, rightRef]);
+    statusArgs.addAll(<String>[leftRef, rightRef]);
   }
-  final ProcessResult result = await _runGit(repo, args);
-  if (result.exitCode != 0) {
+  final ProcessResult statusResult = await _runGit(repo, statusArgs);
+  if (statusResult.exitCode != 0) {
     return <SymbolDiff>[];
   }
-  final List<String> files = _decodeOutput(result.stdout)
+  final List<String> statusLines = _decodeOutput(statusResult.stdout)
       .split('\n')
       .where((String l) => l.trim().isNotEmpty)
       .toList();
-  return files
+
+  for (final String line in statusLines) {
+    // Formats:
+    // A\tpath
+    // D\tpath
+    // M\tpath
+    // R100\told\tnew
+    final List<String> parts = line.split('\t');
+    if (parts.isEmpty) continue;
+    final String status = parts.first.trim();
+    if (status.isEmpty) continue;
+    if (status.startsWith('R') && parts.length >= 3) {
+      final String before = parts[1];
+      final String after = parts[2];
+      changes[after] = SymbolChange(
+        name: after,
+        kind: SymbolKind.other,
+        beforePath: before,
+        afterPath: after,
+      );
+      continue;
+    }
+    if (parts.length < 2) continue;
+    final String path = parts[1];
+    switch (status[0]) {
+      case 'A':
+        changes[path] = SymbolChange(
+          name: path,
+          kind: SymbolKind.other,
+          beforePath: null,
+          afterPath: path,
+        );
+        break;
+      case 'D':
+        changes[path] = SymbolChange(
+          name: path,
+          kind: SymbolKind.other,
+          beforePath: path,
+          afterPath: null,
+        );
+        break;
+      default:
+        changes[path] = SymbolChange(
+          name: path,
+          kind: SymbolKind.other,
+          beforePath: path,
+          afterPath: path,
+        );
+        break;
+    }
+  }
+
+  return changes.values
       .map(
-        (String path) => SymbolDiff(
-          change: SymbolChange(
-            name: path,
-            kind: SymbolKind.other,
-            beforePath: path,
-            afterPath: path,
-          ),
+        (SymbolChange change) => SymbolDiff(
+          change: change,
           leftSnippet: '',
           rightSnippet: '',
         ),

@@ -59,6 +59,29 @@ class FilesList extends StatelessWidget {
           final bool debugHit = debugSearch.isNotEmpty &&
               (change.name.toLowerCase().contains(debugSearch.toLowerCase()) ||
                   (change.beforePath ?? '').toLowerCase().contains(debugSearch.toLowerCase()));
+          final bool isNew = change.beforePath == null || (change.beforePath?.isEmpty ?? true);
+          final bool isRemoved = change.afterPath == null || (change.afterPath?.isEmpty ?? true);
+          Widget? trailing;
+          if (debugHit) {
+            trailing = Chip(
+              label: const Text('Debug'),
+              visualDensity: VisualDensity.compact,
+            );
+          } else if (isNew) {
+            trailing = Chip(
+              label: const Text('New'),
+              backgroundColor: Colors.green.shade800,
+              labelStyle: const TextStyle(color: Colors.white),
+              visualDensity: VisualDensity.compact,
+            );
+          } else if (isRemoved) {
+            trailing = Chip(
+              label: const Text('Removed'),
+              backgroundColor: Colors.red.shade800,
+              labelStyle: const TextStyle(color: Colors.white),
+              visualDensity: VisualDensity.compact,
+            );
+          }
           return ListTile(
             dense: true,
             selected: selected,
@@ -74,12 +97,7 @@ class FilesList extends StatelessWidget {
                 color: Colors.grey[700],
               ),
             ),
-            trailing: debugHit
-                ? Chip(
-                    label: const Text('Debug'),
-                    visualDensity: VisualDensity.compact,
-                  )
-                : null,
+            trailing: trailing,
             onTap: () {
               focusNode?.requestFocus();
               onSelect(index);
