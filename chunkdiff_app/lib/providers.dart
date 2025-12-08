@@ -62,6 +62,38 @@ class SettingsController extends AutoDisposeAsyncNotifier<AppSettings> {
     state = AsyncData(next);
   }
 
+  Future<void> setSelectedHunkIndex(int index) async {
+    final SettingsRepository repo = ref.read(settingsRepositoryProvider);
+    final AppSettings next = (state.value ?? const AppSettings())
+        .copyWith(selectedHunkIndex: index);
+    await repo.save(next);
+    state = AsyncData(next);
+  }
+
+  Future<void> setSelectedFileIndex(int index) async {
+    final SettingsRepository repo = ref.read(settingsRepositoryProvider);
+    final AppSettings next = (state.value ?? const AppSettings())
+        .copyWith(selectedFileIndex: index);
+    await repo.save(next);
+    state = AsyncData(next);
+  }
+
+  Future<void> setSelectedTab(ChangesTab tab) async {
+    final SettingsRepository repo = ref.read(settingsRepositoryProvider);
+    final AppSettings next = (state.value ?? const AppSettings())
+        .copyWith(selectedTab: tab.name);
+    await repo.save(next);
+    state = AsyncData(next);
+  }
+
+  Future<void> setVerboseLogging(bool value) async {
+    final SettingsRepository repo = ref.read(settingsRepositoryProvider);
+    final AppSettings next =
+        (state.value ?? const AppSettings()).copyWith(verboseDebugLog: value);
+    await repo.save(next);
+    state = AsyncData(next);
+  }
+
   Future<void> setShowDebugInfo(bool value) async {
     final SettingsRepository repo = ref.read(settingsRepositoryProvider);
     final AppSettings next =
@@ -109,7 +141,7 @@ final StateProvider<int> selectedChangeIndexProvider =
     StateProvider<int>((Ref ref) {
   final AsyncValue<AppSettings> settings = ref.watch(settingsControllerProvider);
   return settings.maybeWhen(
-    data: (AppSettings s) => s.selectedChunkIndex,
+    data: (AppSettings s) => s.selectedFileIndex,
     orElse: () => 0,
   );
 });
@@ -295,16 +327,33 @@ final Provider<SymbolDiff?> selectedDiffProvider =
   );
 });
 
-enum ChangesTab { files, hunks, chunks }
+enum ChangesTab { files, hunks, moved }
 
 final StateProvider<ChangesTab> changesTabProvider =
-    StateProvider<ChangesTab>((Ref ref) => ChangesTab.hunks);
+    StateProvider<ChangesTab>((Ref ref) {
+  final AsyncValue<AppSettings> settings = ref.watch(settingsControllerProvider);
+  return settings.maybeWhen(
+    data: (AppSettings s) =>
+        ChangesTab.values.firstWhere((ChangesTab t) => t.name == s.selectedTab,
+            orElse: () => ChangesTab.hunks),
+    orElse: () => ChangesTab.hunks,
+  );
+});
 
 final StateProvider<int> selectedChunkIndexProvider =
     StateProvider<int>((Ref ref) {
   final AsyncValue<AppSettings> settings = ref.watch(settingsControllerProvider);
   return settings.maybeWhen(
     data: (AppSettings s) => s.selectedChunkIndex,
+    orElse: () => 0,
+  );
+});
+
+final StateProvider<int> selectedHunkIndexProvider =
+    StateProvider<int>((Ref ref) {
+  final AsyncValue<AppSettings> settings = ref.watch(settingsControllerProvider);
+  return settings.maybeWhen(
+    data: (AppSettings s) => s.selectedHunkIndex,
     orElse: () => 0,
   );
 });

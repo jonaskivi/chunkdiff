@@ -51,7 +51,6 @@ class _DiffViewState extends ConsumerState<DiffView>
     final AsyncValue<List<CodeChunk>> asyncChunks =
         ref.watch(chunkDiffsProvider);
     final List<SymbolChange> changes = ref.watch(symbolChangesProvider);
-    final int selectedIndex = ref.watch(selectedChangeIndexProvider);
     final String leftRef = ref.watch(leftRefProvider);
     final String rightRef = ref.watch(rightRefProvider);
     final SymbolChange? selectedChange = ref.watch(selectedChangeProvider);
@@ -65,6 +64,8 @@ class _DiffViewState extends ConsumerState<DiffView>
     final bool hasChanges =
         (changes.isNotEmpty && !isLoading) || hasHunkData || hasChunkData;
     final ChangesTab activeTab = ref.watch(changesTabProvider);
+    final int selectedFileIndex = ref.watch(selectedChangeIndexProvider);
+    final int selectedHunkIndex = ref.watch(selectedHunkIndexProvider);
     final int selectedChunkIndex = ref.watch(selectedChunkIndexProvider);
     final AppSettings? settings =
         ref.watch(settingsControllerProvider).maybeWhen(
@@ -84,8 +85,10 @@ class _DiffViewState extends ConsumerState<DiffView>
             children: [
               _TabSwitcher(
                 activeTab: activeTab,
-                onChanged: (ChangesTab tab) =>
-                    ref.read(changesTabProvider.notifier).state = tab,
+                onChanged: (ChangesTab tab) {
+                  ref.read(changesTabProvider.notifier).state = tab;
+                  ref.read(settingsControllerProvider.notifier).setSelectedTab(tab);
+                },
               ),
               const SizedBox(height: 8),
               Expanded(
@@ -104,25 +107,40 @@ class _DiffViewState extends ConsumerState<DiffView>
                         ? (activeTab == ChangesTab.files
                             ? FilesList(
                                 changes: changes,
-                                selectedIndex: selectedIndex,
-                                onSelect: (int idx) => ref
-                                    .read(
-                                        selectedChangeIndexProvider.notifier)
-                                    .state = idx,
+                                selectedIndex: selectedFileIndex,
+                                onSelect: (int idx) {
+                                  ref
+                                      .read(
+                                          selectedChangeIndexProvider.notifier)
+                                      .state = idx;
+                                  ref
+                                      .read(settingsControllerProvider.notifier)
+                                      .setSelectedFileIndex(idx);
+                                },
                                 onArrowUp: () {
-                                  if (selectedIndex > 0) {
+                                  if (selectedFileIndex > 0) {
                                     ref
                                         .read(selectedChangeIndexProvider
-                                            .notifier)
-                                        .state = selectedIndex - 1;
+                                                .notifier)
+                                        .state = selectedFileIndex - 1;
+                                    ref
+                                        .read(
+                                            settingsControllerProvider.notifier)
+                                        .setSelectedFileIndex(
+                                            selectedFileIndex - 1);
                                   }
                                 },
                                 onArrowDown: () {
-                                  if (selectedIndex < changes.length - 1) {
+                                  if (selectedFileIndex < changes.length - 1) {
                                     ref
                                         .read(selectedChangeIndexProvider
                                             .notifier)
-                                        .state = selectedIndex + 1;
+                                        .state = selectedFileIndex + 1;
+                                    ref
+                                        .read(
+                                            settingsControllerProvider.notifier)
+                                        .setSelectedFileIndex(
+                                            selectedFileIndex + 1);
                                   }
                                 },
                                 focusNode: _filesFocus,
@@ -131,50 +149,50 @@ class _DiffViewState extends ConsumerState<DiffView>
                             : activeTab == ChangesTab.hunks
                                 ? _HunkList(
                                     asyncHunks: asyncHunks,
-                                    selectedIndex: selectedChunkIndex,
+                                    selectedIndex: selectedHunkIndex,
                                     onSelect: (int idx) {
                                       ref
-                                          .read(selectedChunkIndexProvider
+                                          .read(selectedHunkIndexProvider
                                               .notifier)
                                           .state = idx;
                                       ref
                                           .read(settingsControllerProvider
                                               .notifier)
-                                          .setSelectedChunkIndex(idx);
+                                          .setSelectedHunkIndex(idx);
                                     },
                                     onArrowUp: () {
-                                      if (selectedChunkIndex > 0) {
+                                      if (selectedHunkIndex > 0) {
                                         ref
-                                            .read(selectedChunkIndexProvider
+                                            .read(selectedHunkIndexProvider
                                                 .notifier)
-                                            .state = selectedChunkIndex - 1;
+                                            .state = selectedHunkIndex - 1;
                                         ref
                                             .read(
                                                 settingsControllerProvider
                                                     .notifier)
                                             .setSelectedChunkIndex(
-                                                selectedChunkIndex - 1);
+                                                selectedHunkIndex - 1);
                                       }
                                     },
                                     onArrowDown: () {
-                                    final int maxIndex =
-                                        (asyncHunks.value?.length ?? 0) - 1;
-                                    if (selectedChunkIndex < maxIndex) {
-                                      ref
-                                          .read(selectedChunkIndexProvider
-                                              .notifier)
-                                          .state = selectedChunkIndex + 1;
-                                      ref
-                                          .read(
-                                              settingsControllerProvider
-                                                  .notifier)
-                                          .setSelectedChunkIndex(
-                                              selectedChunkIndex + 1);
-                                    }
-                                  },
-                                  focusNode: _hunksFocus,
-                                  debugSearch: debugSearch,
-                                )
+                                      final int maxIndex =
+                                          (asyncHunks.value?.length ?? 0) - 1;
+                                      if (selectedHunkIndex < maxIndex) {
+                                        ref
+                                            .read(selectedHunkIndexProvider
+                                                .notifier)
+                                            .state = selectedHunkIndex + 1;
+                                        ref
+                                            .read(
+                                                settingsControllerProvider
+                                                    .notifier)
+                                            .setSelectedHunkIndex(
+                                                selectedHunkIndex + 1);
+                                      }
+                                    },
+                                    focusNode: _hunksFocus,
+                                    debugSearch: debugSearch,
+                                  )
                                 : _ChunksList(
                                     asyncChunks: asyncChunks,
                                     selectedIndex: selectedChunkIndex,
@@ -214,39 +232,45 @@ class _DiffViewState extends ConsumerState<DiffView>
                 rightRef: rightRef,
                 onPrev: () {
                   if (activeTab == ChangesTab.files) {
-                    if (selectedIndex > 0) {
+                    if (selectedFileIndex > 0) {
                       ref
                           .read(selectedChangeIndexProvider.notifier)
-                          .state = selectedIndex - 1;
-                    }
-                  } else if (activeTab == ChangesTab.hunks) {
-                    if (selectedChunkIndex > 0) {
-                      ref
-                          .read(selectedChunkIndexProvider.notifier)
-                          .state = selectedChunkIndex - 1;
+                          .state = selectedFileIndex - 1;
                       ref
                           .read(settingsControllerProvider.notifier)
-                          .setSelectedChunkIndex(selectedChunkIndex - 1);
+                          .setSelectedFileIndex(selectedFileIndex - 1);
+                    }
+                  } else if (activeTab == ChangesTab.hunks) {
+                    if (selectedHunkIndex > 0) {
+                      ref
+                          .read(selectedHunkIndexProvider.notifier)
+                          .state = selectedHunkIndex - 1;
+                      ref
+                          .read(settingsControllerProvider.notifier)
+                          .setSelectedHunkIndex(selectedHunkIndex - 1);
                     }
                   }
                 },
                 onNext: () {
                   if (activeTab == ChangesTab.files) {
-                    if (selectedIndex < changes.length - 1) {
+                    if (selectedFileIndex < changes.length - 1) {
                       ref
                           .read(selectedChangeIndexProvider.notifier)
-                          .state = selectedIndex + 1;
+                          .state = selectedFileIndex + 1;
+                      ref
+                          .read(settingsControllerProvider.notifier)
+                          .setSelectedFileIndex(selectedFileIndex + 1);
                     }
                   } else if (activeTab == ChangesTab.hunks) {
                     final int maxIndex =
                         (asyncHunks.value?.length ?? 0) - 1;
-                    if (selectedChunkIndex < maxIndex) {
+                    if (selectedHunkIndex < maxIndex) {
                       ref
-                          .read(selectedChunkIndexProvider.notifier)
-                          .state = selectedChunkIndex + 1;
+                          .read(selectedHunkIndexProvider.notifier)
+                          .state = selectedHunkIndex + 1;
                       ref
                           .read(settingsControllerProvider.notifier)
-                          .setSelectedChunkIndex(selectedChunkIndex + 1);
+                          .setSelectedHunkIndex(selectedHunkIndex + 1);
                     }
                   }
                 },
@@ -426,9 +450,9 @@ class _TabSwitcher extends StatelessWidget {
           onTap: () => onChanged(ChangesTab.hunks),
         ),
         _TabChip(
-          label: 'Chunks',
-          selected: activeTab == ChangesTab.chunks,
-          onTap: () => onChanged(ChangesTab.chunks),
+          label: 'Moved',
+          selected: activeTab == ChangesTab.moved,
+          onTap: () => onChanged(ChangesTab.moved),
         ),
       ],
     );
