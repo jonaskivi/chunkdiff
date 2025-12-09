@@ -63,10 +63,7 @@ class _DiffViewState extends ConsumerState<DiffView>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      // Refresh data when app returns to foreground.
-      ref.invalidate(symbolDiffsProvider);
-      ref.invalidate(hunkDiffsProvider);
-      ref.invalidate(chunkDiffsProvider);
+      _refresh('App resumed – refreshing repo');
       _restartWatcher();
     }
   }
@@ -74,9 +71,7 @@ class _DiffViewState extends ConsumerState<DiffView>
   void _debouncedRefresh() {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 400), () {
-      ref.invalidate(symbolDiffsProvider);
-      ref.invalidate(hunkDiffsProvider);
-      ref.invalidate(chunkDiffsProvider);
+      _refresh('Detected file changes – refreshing');
     });
   }
 
@@ -208,6 +203,19 @@ class _DiffViewState extends ConsumerState<DiffView>
     final FocusNode? node = FocusManager.instance.primaryFocus;
     final Widget? w = node?.context?.widget;
     return w is EditableText;
+  }
+
+  void _refresh(String reason) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(reason),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+    ref.invalidate(symbolDiffsProvider);
+    ref.invalidate(hunkDiffsProvider);
+    ref.invalidate(chunkDiffsProvider);
   }
 
   List<CodeChunk> _sortChunks(List<CodeChunk> raw) {
