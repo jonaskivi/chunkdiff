@@ -18,7 +18,7 @@ class DiffView extends ConsumerStatefulWidget {
 }
 
 class _DiffViewState extends ConsumerState<DiffView>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _shimmerController;
   late final FocusNode _filesFocus;
   late final FocusNode _hunksFocus;
@@ -27,6 +27,7 @@ class _DiffViewState extends ConsumerState<DiffView>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _shimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
@@ -43,11 +44,23 @@ class _DiffViewState extends ConsumerState<DiffView>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _shimmerController.dispose();
     _filesFocus.dispose();
     _hunksFocus.dispose();
     _rootFocus.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Refresh data when app returns to foreground.
+      ref.invalidate(symbolDiffsProvider);
+      ref.invalidate(hunkDiffsProvider);
+      ref.invalidate(chunkDiffsProvider);
+    }
   }
 
   bool _isTextFieldFocused() {
