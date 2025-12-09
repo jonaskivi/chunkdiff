@@ -82,26 +82,41 @@ class FilesList extends StatelessWidget {
               visualDensity: VisualDensity.compact,
             );
           }
-          return ListTile(
-            dense: true,
-            selected: selected,
-            title: Text(
-              change.name,
-              style: TextStyle(
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          final Color tileColor = selected ? Colors.indigo.withOpacity(0.15) : Colors.transparent;
+          final Color hoverColor = Colors.indigo.withOpacity(0.08);
+          return Material(
+            color: tileColor,
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              hoverColor: hoverColor,
+              onTap: () {
+                focusNode?.requestFocus();
+                onSelect(index);
+              },
+              child: ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                selected: selected,
+                selectedTileColor: tileColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                title: Text(
+                  change.name,
+                  style: TextStyle(
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  ),
+                ),
+                subtitle: Text(
+                  change.kind.name,
+                  style: TextStyle(
+                    color: Colors.grey[700],
+                  ),
+                ),
+                trailing: trailing,
               ),
             ),
-            subtitle: Text(
-              change.kind.name,
-              style: TextStyle(
-                color: Colors.grey[700],
-              ),
-            ),
-            trailing: trailing,
-            onTap: () {
-              focusNode?.requestFocus();
-              onSelect(index);
-            },
           );
         },
       ),

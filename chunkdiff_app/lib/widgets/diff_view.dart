@@ -610,7 +610,7 @@ class _HunkList extends StatelessWidget {
       );
     }
 
-    return Focus(
+        return Focus(
       focusNode: focusNode,
       onKey: (FocusNode node, RawKeyEvent event) {
         if (event is! RawKeyDownEvent) return KeyEventResult.ignored;
@@ -638,24 +638,40 @@ class _HunkList extends StatelessWidget {
                   chunk.lines.any((DiffLine l) =>
                       l.leftText.toLowerCase().contains(needle) ||
                       l.rightText.toLowerCase().contains(needle)));
-          return ListTile(
-            dense: true,
-            selected: selected,
-            title: Text(chunk.filePath),
-            subtitle: Text(
-              'Old ${chunk.oldStart}-${chunk.oldStart + chunk.oldCount - 1} → '
-              'New ${chunk.newStart}-${chunk.newStart + chunk.newCount - 1}',
+          final Color tileColor =
+              selected ? Colors.indigo.withOpacity(0.15) : Colors.transparent;
+          final Color hoverColor = Colors.indigo.withOpacity(0.08);
+          return Material(
+            color: tileColor,
+            borderRadius: BorderRadius.circular(10),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              hoverColor: hoverColor,
+              onTap: () {
+                focusNode?.requestFocus();
+                onSelect(index);
+              },
+              child: ListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                selected: selected,
+                selectedTileColor: tileColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                title: Text(chunk.filePath),
+                subtitle: Text(
+                  'Old ${chunk.oldStart}-${chunk.oldStart + chunk.oldCount - 1} → '
+                  'New ${chunk.newStart}-${chunk.newStart + chunk.newCount - 1}',
+                ),
+                trailing: debugHit
+                    ? Chip(
+                        label: const Text('Debug'),
+                        visualDensity: VisualDensity.compact,
+                      )
+                    : null,
+              ),
             ),
-            trailing: debugHit
-                ? Chip(
-                    label: const Text('Debug'),
-                    visualDensity: VisualDensity.compact,
-                  )
-                : null,
-            onTap: () {
-              focusNode?.requestFocus();
-              onSelect(index);
-            },
           );
         },
       ),
@@ -823,48 +839,64 @@ class _ChunksList extends StatelessWidget {
             (chunk.name.toLowerCase().contains(needle) ||
                 chunk.filePath.toLowerCase().contains(needle) ||
                 chunk.rightFilePath.toLowerCase().contains(needle));
-        final String categoryLabel = switch (chunk.category) {
-          ChunkCategory.moved => 'Moved',
-          ChunkCategory.changed => 'Changed',
-          ChunkCategory.importOnly => 'Import',
-          ChunkCategory.punctuationOnly => 'Punctuation',
-          ChunkCategory.usageOrUnresolved => 'Usage',
-          ChunkCategory.unreadable => 'Unreadable',
-        };
-        final Color categoryColor = switch (chunk.category) {
-          ChunkCategory.moved => Colors.blue.shade800,
-          ChunkCategory.changed => Colors.grey.shade700,
-          ChunkCategory.importOnly => Colors.teal.shade800,
-          ChunkCategory.punctuationOnly => Colors.brown.shade700,
-          ChunkCategory.usageOrUnresolved => Colors.purple.shade700,
-          ChunkCategory.unreadable => Colors.red.shade800,
-        };
-        final List<Widget> chips = <Widget>[
-          Chip(
-            label: Text(categoryLabel),
-            backgroundColor: categoryColor,
-            labelStyle: const TextStyle(color: Colors.white),
-            visualDensity: VisualDensity.compact,
-          ),
-          if (debugHit)
-            const Chip(
-              label: Text('Debug'),
+          final String categoryLabel = switch (chunk.category) {
+            ChunkCategory.moved => 'Moved',
+            ChunkCategory.changed => 'Changed',
+            ChunkCategory.importOnly => 'Import',
+            ChunkCategory.punctuationOnly => 'Punctuation',
+            ChunkCategory.usageOrUnresolved => 'Usage',
+            ChunkCategory.unreadable => 'Unreadable',
+          };
+          final Color categoryColor = switch (chunk.category) {
+            ChunkCategory.moved => Colors.blue.shade800,
+            ChunkCategory.changed => Colors.grey.shade700,
+            ChunkCategory.importOnly => Colors.teal.shade800,
+            ChunkCategory.punctuationOnly => Colors.brown.shade700,
+            ChunkCategory.usageOrUnresolved => Colors.purple.shade700,
+            ChunkCategory.unreadable => Colors.red.shade800,
+          };
+          final List<Widget> chips = <Widget>[
+            Chip(
+              label: Text(categoryLabel),
+              backgroundColor: categoryColor,
+              labelStyle: const TextStyle(color: Colors.white),
               visualDensity: VisualDensity.compact,
             ),
-        ];
-        return ListTile(
-          dense: true,
-          selected: selected,
-          title: Text('${chunk.id}: ${chunk.name}'),
-          subtitle: Text(
-            '${chunk.filePath} | lines ${chunk.oldStart}-${chunk.oldEnd}',
+            if (debugHit)
+              const Chip(
+                label: Text('Debug'),
+                visualDensity: VisualDensity.compact,
+              ),
+          ];
+        final Color tileColor =
+            selected ? Colors.indigo.withOpacity(0.15) : Colors.transparent;
+        final Color hoverColor = Colors.indigo.withOpacity(0.08);
+        return Material(
+          color: tileColor,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            hoverColor: hoverColor,
+            onTap: () => onSelect(index),
+            child: ListTile(
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              selected: selected,
+              selectedTileColor: tileColor,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              title: Text('${chunk.id}: ${chunk.name}'),
+              subtitle: Text(
+                '${chunk.filePath} | lines ${chunk.oldStart}-${chunk.oldEnd}',
+              ),
+              trailing: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: chips,
+              ),
+            ),
           ),
-          trailing: Wrap(
-            spacing: 6,
-            runSpacing: 4,
-            children: chips,
-          ),
-          onTap: () => onSelect(index),
         );
       },
     );
