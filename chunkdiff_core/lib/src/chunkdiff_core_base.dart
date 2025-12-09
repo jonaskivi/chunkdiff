@@ -876,15 +876,24 @@ List<CodeHunk> _parseGitHunks(String diffOutput) {
       rightCollector.clear();
       return;
     }
+    final List<DiffLine> normalizedLines = _alignHunkLinesSimple(List<DiffLine>.from(currentLines));
+    final String leftJoined = normalizedLines
+        .where((DiffLine l) => l.leftText.isNotEmpty)
+        .map((DiffLine l) => l.leftText)
+        .join('\n');
+    final String rightJoined = normalizedLines
+        .where((DiffLine l) => l.rightText.isNotEmpty)
+        .map((DiffLine l) => l.rightText)
+        .join('\n');
     hunks.add(CodeHunk(
       filePath: currentFile!,
       oldStart: oldStart!,
       oldCount: oldCount!,
       newStart: newStart!,
       newCount: newCount!,
-      leftText: leftCollector.join('\n'),
-      rightText: rightCollector.join('\n'),
-      lines: List<DiffLine>.from(currentLines),
+      leftText: leftJoined,
+      rightText: rightJoined,
+      lines: normalizedLines,
     ));
     currentLines.clear();
     leftCollector.clear();
@@ -926,25 +935,6 @@ List<CodeHunk> _parseGitHunks(String diffOutput) {
         line.isEmpty ||
         line.startsWith('\\ No newline at end of file')) {
       if (line.startsWith('\\')) {
-        continue;
-      }
-
-      if (line.startsWith('-') && i + 1 < lines.length && lines[i + 1].startsWith('+')) {
-        // Treat a -/+ pair as a single changed line.
-        final String left = line.substring(1);
-        final String right = lines[i + 1].substring(1);
-        currentLines.add(DiffLine(
-          leftNumber: currentOldLine,
-          rightNumber: currentNewLine,
-          leftText: left,
-          rightText: right,
-          status: DiffLineStatus.changed,
-        ));
-        leftCollector.add(left);
-        rightCollector.add(right);
-        currentOldLine++;
-        currentNewLine++;
-        i++; // consume the added line
         continue;
       }
 
@@ -1477,4 +1467,132 @@ double _structureSimilarity(String a, String b) {
   final int union = sa.union(sb).length;
   if (union == 0) return 0.0;
   return inter / union;
+}
+
+List<DiffLine> _alignHunkLinesSimple(List<DiffLine> lines) {
+  final List<DiffLine> result = <DiffLine>[];
+  final List<DiffLine> removedBuf = <DiffLine>[];
+  final List<DiffLine> addedBuf = <DiffLine>[];
+
+  void flushBuffers() {
+    if (removedBuf.isEmpty && addedBuf.isEmpty) {
+      return;
+    }
+    final List<_LineWithPos> temp = <_LineWithPos>[];
+    final List<bool> matchedRemoved =
+        List<bool>.filled(removedBuf.length, false);
+    final List<bool> matchedAdded =
+        List<bool>.filled(addedBuf.length, false);
+
+    double sim(String a, String b) {
+      if (a.isEmpty || b.isEmpty) return 0.0;
+      final List<String> ta = a
+          .split(RegExp(r'\\W+'))
+          .where((String s) => s.isNotEmpty)
+          .toList();
+      final List<String> tb = b
+          .split(RegExp(r'\\W+'))
+          .where((String s) => s.isNotEmpty)
+          .toList();
+      if (ta.isEmpty || tb.isEmpty) return 0.0;
+      final Set<String> sa = ta.toSet();
+      final Set<String> sb = tb.toSet();
+      final int inter = sa.intersection(sb).length;
+      final int union = sa.union(sb).length;
+      return union == 0 ? 0.0 : inter / union;
+    }
+
+    for (int i = 0; i < removedBuf.length; i++) {
+      final DiffLine rem = removedBuf[i];
+      double best = 0.0;
+      int bestDist = 9999;
+      int bestIdx = -1;
+      for (int j = 0; j < addedBuf.length; j++) {
+        if (matchedAdded[j]) continue;
+        final int leftNum = rem.leftNumber ?? 0;
+        final int rightNum = addedBuf[j].rightNumber ?? leftNum;
+        final int distance = (leftNum - rightNum).abs();
+        if (distance > 8) continue; // consider a slightly wider window
+        final double s = sim(rem.leftText, addedBuf[j].rightText);
+        if (s > best || (s == best && distance < bestDist)) {
+          best = s;
+          bestDist = distance;
+          bestIdx = j;
+        }
+      }
+      // Fallback: if similarity low but line numbers are close, still pair.
+      final bool closeLineNumbers = bestIdx != -1 && bestDist <= 2;
+      if (bestIdx != -1 && (best >= 0.2 || closeLineNumbers)) {
+        matchedRemoved[i] = true;
+        matchedAdded[bestIdx] = true;
+        final DiffLine add = addedBuf[bestIdx];
+        temp.add(_LineWithPos(
+          pos: _linePos(rem.leftNumber, add.rightNumber),
+          line: DiffLine(
+            leftNumber: rem.leftNumber,
+            rightNumber: add.rightNumber,
+            leftText: rem.leftText,
+            rightText: add.rightText,
+            status: DiffLineStatus.changed,
+          ),
+        ));
+      }
+    }
+
+    for (int i = 0; i < removedBuf.length; i++) {
+      if (matchedRemoved[i]) continue;
+      temp.add(_LineWithPos(
+        pos: _linePos(removedBuf[i].leftNumber, null),
+        line: removedBuf[i],
+      ));
+    }
+    for (int j = 0; j < addedBuf.length; j++) {
+      if (matchedAdded[j]) continue;
+      temp.add(_LineWithPos(
+        pos: _linePos(null, addedBuf[j].rightNumber),
+        line: addedBuf[j],
+      ));
+    }
+
+    temp.sort((a, b) => a.pos.compareTo(b.pos));
+    result.addAll(temp.map((e) => e.line));
+    removedBuf.clear();
+    addedBuf.clear();
+  }
+
+  for (final DiffLine line in lines) {
+    if (line.status == DiffLineStatus.context) {
+      flushBuffers();
+      result.add(line);
+      continue;
+    }
+    if (line.status == DiffLineStatus.removed) {
+      removedBuf.add(line);
+      continue;
+    }
+    if (line.status == DiffLineStatus.added) {
+      addedBuf.add(line);
+      continue;
+    }
+    // changed lines are kept as-is
+    flushBuffers();
+    result.add(line);
+  }
+  flushBuffers();
+
+  return result;
+}
+
+int _linePos(int? left, int? right) {
+  const int large = 1000000;
+  final int l = left ?? large;
+  final int r = right ?? large;
+  return l < r ? l : r;
+}
+
+class _LineWithPos {
+  final int pos;
+  final DiffLine line;
+
+  _LineWithPos({required this.pos, required this.line});
 }
