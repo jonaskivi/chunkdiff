@@ -294,15 +294,53 @@ class _DiffViewState extends ConsumerState<DiffView>
         Expanded(
           child: Column(
             children: [
+              if (showDebug) ...[
+                _DebugPanel(
+                  initialText: debugSearch,
+                  onSubmit: (String value) async {
+                    await ref
+                        .read(settingsControllerProvider.notifier)
+                        .setDebugSearch(value);
+                    ref.invalidate(chunkDiffsProvider);
+                  },
+                  logLines: debugLog,
+                ),
+                const SizedBox(height: 8),
+              ],
               if (activeTab == ChangesTab.moved && selectedChunkId != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    'Chunk #$selectedChunkId',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Center(
+                        child: Text(
+                          'Chunk #$selectedChunkId',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      if (kDebugMode)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton.icon(
+                            onPressed: () {
+                              final bool next = !(settings?.showDebugInfo ?? false);
+                              ref
+                                  .read(settingsControllerProvider.notifier)
+                                  .setShowDebugInfo(next);
+                            },
+                            icon: const Icon(Icons.bug_report, size: 18),
+                            label: Text(
+                              (settings?.showDebugInfo ?? false)
+                                  ? 'Hide debug info'
+                                  : 'Show debug info',
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               _DiffMetaBar(
@@ -330,66 +368,34 @@ class _DiffViewState extends ConsumerState<DiffView>
                     }
                   }
                 },
-                onNext: () {
-                  if (activeTab == ChangesTab.files) {
-                    if (selectedFileIndex < changes.length - 1) {
-                      ref
-                          .read(selectedChangeIndexProvider.notifier)
-                          .state = selectedFileIndex + 1;
-                      ref
-                          .read(settingsControllerProvider.notifier)
-                          .setSelectedFileIndex(selectedFileIndex + 1);
-                    }
-                  } else if (activeTab == ChangesTab.hunks) {
-                    final int maxIndex =
-                        (asyncHunks.value?.length ?? 0) - 1;
-                    if (selectedHunkIndex < maxIndex) {
-                      ref
-                          .read(selectedHunkIndexProvider.notifier)
-                          .state = selectedHunkIndex + 1;
-                      ref
-                          .read(settingsControllerProvider.notifier)
-                          .setSelectedHunkIndex(selectedHunkIndex + 1);
-                    }
-                  }
-                },
-              ),
-              const SizedBox(height: 8),
-              if (kDebugMode)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: () {
-                      final bool next = !(settings?.showDebugInfo ?? false);
-                      ref
-                          .read(settingsControllerProvider.notifier)
-                          .setShowDebugInfo(next);
-                    },
-                    icon: const Icon(Icons.bug_report, size: 18),
-                    label: Text(
-                      (settings?.showDebugInfo ?? false)
-                          ? 'Hide debug info'
-                          : 'Show debug info',
-                    ),
-                  ),
-                ),
-              if (showDebug) ...[
-                _DebugPanel(
-                  initialText: debugSearch,
-                  onSubmit: (String value) async {
-                    await ref
+              onNext: () {
+                if (activeTab == ChangesTab.files) {
+                  if (selectedFileIndex < changes.length - 1) {
+                    ref
+                        .read(selectedChangeIndexProvider.notifier)
+                        .state = selectedFileIndex + 1;
+                    ref
                         .read(settingsControllerProvider.notifier)
-                        .setDebugSearch(value);
-                    ref.invalidate(chunkDiffsProvider);
-                  },
-                  logLines: debugLog,
-                ),
-                const SizedBox(height: 8),
-              ],
-              Expanded(
-                child: isLoading
-                    ? Row(
-                        children: [
+                        .setSelectedFileIndex(selectedFileIndex + 1);
+                  }
+                } else if (activeTab == ChangesTab.hunks) {
+                  final int maxIndex =
+                      (asyncHunks.value?.length ?? 0) - 1;
+                  if (selectedHunkIndex < maxIndex) {
+                    ref
+                        .read(selectedHunkIndexProvider.notifier)
+                        .state = selectedHunkIndex + 1;
+                    ref
+                        .read(settingsControllerProvider.notifier)
+                        .setSelectedHunkIndex(selectedHunkIndex + 1);
+                  }
+                }
+              },
+            ),
+            Expanded(
+              child: isLoading
+                  ? Row(
+                      children: [
                           Expanded(
                             child: _SkeletonPane(
                               animation: _shimmerController,
